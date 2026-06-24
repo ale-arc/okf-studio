@@ -75,6 +75,8 @@ function buildMenu() {
     {
       label: 'Ajuda',
       submenu: [
+        { label: 'Manual do OKF Studio', accelerator: 'F1', click: () => mainWindow.webContents.send('menu:manual') },
+        { type: 'separator' },
         { label: 'Verificar atualizações…', click: () => checkForUpdates(true) },
         { type: 'separator' },
         { label: 'Especificação OKF v0.1 (GitHub)', click: () => shell.openExternal('https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf') },

@@ -163,7 +163,36 @@ function buildTypeFilter() {
 /* ---------- View states ---------- */
 function showEmpty(){ $('empty').classList.remove('hidden'); $('viewer').classList.add('hidden'); }
 function showViewer(){ $('empty').classList.add('hidden'); $('viewer').classList.remove('hidden'); }
-function closeOverlays(){ $('graph-view').classList.add('hidden'); $('validate-view').classList.add('hidden'); }
+function closeOverlays(){ $('graph-view').classList.add('hidden'); $('validate-view').classList.add('hidden'); $('manual-view').classList.add('hidden'); }
+
+/* ---------- Manual ---------- */
+let manualRendered = false;
+function showManual() {
+  closeOverlays();
+  if (!manualRendered) {
+    const body = $('manual-body');
+    body.innerHTML = marked.parse($('manual-md').textContent || '');
+    // Links externos abrem no navegador.
+    body.querySelectorAll('a').forEach(a => {
+      const href = a.getAttribute('href') || '';
+      if (OKF.isExternal(href)) {
+        a.addEventListener('click', e => { e.preventDefault(); window.okf.openExternal(href); });
+      } else {
+        a.addEventListener('click', e => e.preventDefault());
+      }
+    });
+    // Índice navegável a partir dos cabeçalhos de seção (H2).
+    const hs = [...body.querySelectorAll('h2')];
+    hs.forEach((h, i) => { h.id = 'man-sec-' + i; });
+    $('manual-toc').innerHTML = '<div class="toc-title">Conteúdo</div>' +
+      hs.map((h, i) => `<a href="#" data-i="${i}">${escapeHtml(h.textContent)}</a>`).join('');
+    $('manual-toc').querySelectorAll('a[data-i]').forEach(a =>
+      a.addEventListener('click', e => { e.preventDefault(); hs[+a.dataset.i].scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
+    manualRendered = true;
+  }
+  $('manual-view').classList.remove('hidden');
+  $('manual-body').scrollTop = 0;
+}
 
 /* ---------- Open / render doc ---------- */
 function openDoc(relPath) {
@@ -697,6 +726,7 @@ function init() {
     if (state.current) showViewer();
   };
   $('validate-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
+  $('manual-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('m-cancel').onclick = closeModal;
   $('m-create').onclick = createConcept;
   $('tb-concept').onclick = openConceptPicker;
@@ -714,6 +744,7 @@ function init() {
   window.okf.onMenu('menu:reload', reload);
   window.okf.onMenu('menu:validate', showValidation);
   window.okf.onMenu('menu:graph', showGraph);
+  window.okf.onMenu('menu:manual', showManual);
   window.okf.onMenu('menu:about', () => toast('OKF Studio ' + (appVersion ? 'v' + appVersion + ' · ' : '') + 'editor de bibliotecas Open Knowledge Format v0.1', 'good'));
 
   initTheme();
@@ -721,7 +752,7 @@ function init() {
   wireUpdates();
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();

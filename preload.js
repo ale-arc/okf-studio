@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('okf', {
   onMenu: (channel, cb) => {
     const valid = [
       'menu:open-folder', 'menu:open-sample', 'menu:new-concept',
-      'menu:save', 'menu:reload', 'menu:validate', 'menu:graph', 'menu:about'
+      'menu:save', 'menu:reload', 'menu:validate', 'menu:graph', 'menu:about', 'menu:manual'
     ];
     if (valid.includes(channel)) ipcRenderer.on(channel, () => cb());
   }

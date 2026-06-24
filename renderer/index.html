@@ -145,6 +145,19 @@
         </div>
         <div id="validate-body" class="validate-body"></div>
       </div>
+
+      <!-- Manual -->
+      <div id="manual-view" class="hidden">
+        <div class="graph-head">
+          <strong>Manual do OKF Studio</strong>
+          <span class="grow"></span>
+          <button id="manual-close">Fechar</button>
+        </div>
+        <div class="manual-wrap">
+          <nav id="manual-toc" class="manual-toc"></nav>
+          <div id="manual-body" class="manual-body md-body"></div>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -183,6 +196,245 @@
   </div>
 
   <div id="toast" class="toast hidden"></div>
+
+  <!-- Conteúdo do Manual (markdown não executado; renderizado pelo marked) -->
+  <script type="text/markdown" id="manual-md">
+# Manual do OKF Studio
+
+O **OKF Studio** é um aplicativo para **visualizar, criar, editar e validar**
+bibliotecas de conhecimento no **Open Knowledge Format (OKF v0.1)** — um padrão
+aberto para representar conhecimento como arquivos Markdown com *frontmatter*
+YAML. É ideal para montar uma base versionável de projetos, processos,
+playbooks, métricas, referências e contatos, que tanto você quanto agentes de IA
+(como o Claude) podem ler e manter.
+
+## 1. Visão geral
+
+Uma **biblioteca** é simplesmente uma **pasta** com arquivos `.md`. Cada arquivo
+`.md` é um **conceito** (uma unidade de conhecimento). Os conceitos se conectam
+por **links** e formam um **grafo**. O OKF Studio é a janela visual sobre esse
+acervo: você navega, lê, edita e cria conceitos, e o app cuida da formatação,
+dos links e da conformidade com o formato.
+
+Pontos-chave:
+
+- Tudo são arquivos `.md` em pastas — fácil de versionar com Git e de editar por
+  qualquer editor de texto ou por uma IA.
+- O único campo **obrigatório** em cada conceito é o `type`.
+- O app **não** tem banco de dados: ele lê e grava diretamente os arquivos da
+  pasta que você abrir.
+
+## 2. Especificação do formato OKF (resumo)
+
+- **Biblioteca (bundle):** um diretório contendo arquivos `.md`.
+- **Conceito:** cada arquivo `.md` que não seja reservado.
+- **Id do conceito:** o caminho do arquivo dentro da biblioteca, sem a extensão
+  `.md`. Ex.: `projetos/atlas.md` tem o id `projetos/atlas`.
+- **Frontmatter YAML:** um bloco no topo do arquivo, entre duas linhas `---`,
+  com os metadados do conceito.
+- **Corpo:** o conteúdo em Markdown que vem depois do frontmatter.
+- **Arquivos reservados:** `index.md` (índice/listagem de um diretório) e
+  `log.md` (histórico de mudanças). Não são tratados como conceitos.
+- **Links e grafo:** conceitos se ligam por links Markdown; o conjunto de links
+  forma o grafo de relacionamentos.
+- **Conformidade:** uma biblioteca é *conforme* ao OKF v0.1 se todo arquivo
+  `.md` não reservado tiver um frontmatter YAML válido com um campo `type` não
+  vazio. Consumidores toleram tipos, campos e links desconhecidos.
+
+Exemplo de um conceito:
+
+    ---
+    type: Projeto
+    title: Projeto Atlas
+    description: Migração da plataforma de dados para a nuvem.
+    tags: [dados, nuvem]
+    timestamp: 2026-06-24T10:00:00Z
+    ---
+
+    # Projeto Atlas
+
+    Migração da plataforma de dados. Veja [Resposta a incidentes](/processos/resposta-incidente.md).
+
+## 3. Estrutura de uma biblioteca
+
+Organize os conceitos em pastas por categoria. Um exemplo típico:
+
+    minha-biblioteca/
+    ├── index.md                  (índice raiz — opcional)
+    ├── log.md                    (histórico — opcional)
+    ├── projetos/
+    │   ├── index.md
+    │   ├── atlas.md
+    │   └── aurora.md
+    ├── processos/
+    │   └── onboarding-cliente.md
+    └── referencias/
+        ├── contatos.md
+        └── glossario-metricas.md
+
+As pastas viram as categorias exibidas na árvore à esquerda. Você pode criar
+quantos níveis e categorias quiser.
+
+## 4. Campos do frontmatter (e para que serve cada um)
+
+O frontmatter fica no topo do arquivo, entre `---` e `---`. No editor, esses
+campos aparecem como um formulário acima do corpo do texto.
+
+| Campo | Obrigatório | Para que serve |
+|---|---|---|
+| `type` | **Sim** | A categoria/tipo do conceito (ex.: `Projeto`, `Processo`, `Métrica`, `Referência`, `Playbook`). Define a cor do nó no grafo e o filtro por tipo. É o **único campo obrigatório**. |
+| `title` | Recomendado | O título legível do conceito. Se faltar, o app usa o nome do arquivo. Aparece na árvore, no grafo e nas buscas. |
+| `description` | Recomendado | Uma frase curta resumindo o conceito. Aparece no cartão do conceito e ajuda em índices e buscas. |
+| `resource` | Opcional | Uma URI/URL relacionada (ex.: link para o sistema, documento ou painel de origem). Vira um link clicável que abre no navegador. |
+| `tags` | Opcional | Lista de palavras-chave (ex.: `vendas, receita`). Usadas na busca. No editor, digite separadas por vírgula. |
+| `timestamp` | Opcional | Data/hora de referência do conceito, em formato ISO 8601 (ex.: `2026-06-24T10:00:00Z`). O botão **agora** preenche automaticamente. |
+| *(extras)* | Opcional | Você pode adicionar **qualquer outro campo** (ex.: `status`, `responsavel`, `prioridade`). Eles são preservados e aparecem no cartão. No editor, use a seção **Campos extras do frontmatter (YAML)**. |
+
+Boas práticas: sempre preencha `type`; preencha `title` e `description` para
+que a biblioteca fique navegável e pesquisável.
+
+## 5. Arquivos reservados: `index.md` e `log.md`
+
+- **`index.md`** — serve como índice/listagem de um diretório. Costuma conter
+  links para os conceitos daquela pasta. O `index.md` da raiz pode ter um
+  frontmatter com `okf_version: "0.1"`.
+- **`log.md`** — histórico de atualizações da biblioteca, com as mudanças mais
+  recentes no topo (ex.: cabeçalhos `## AAAA-MM-DD` seguidos das alterações).
+
+Esses arquivos **não** são conceitos (não exigem `type`) e, no OKF Studio, são
+editados em **modo Código** (texto cru), preservando todo o conteúdo, inclusive
+um eventual frontmatter.
+
+## 6. A interface
+
+- **Barra superior:** botão de **tema** (🌙/☀), **📂 Abrir** (escolher uma pasta),
+  **✨ Exemplo** (carregar a biblioteca de demonstração), **↻** (recarregar),
+  **＋ Novo**, **🕸 Grafo**, **✓ Validar**, além da **busca** e do **filtro por
+  tipo**.
+- **Árvore (à esquerda):** lista os conceitos agrupados por pasta. Clique para
+  abrir. Os reservados aparecem em itálico.
+- **Área central:** mostra o conceito selecionado (cartão do frontmatter + corpo
+  renderizado) ou, no modo de edição, o formulário + o editor visual.
+- **Citado por:** ao final de um conceito, mostra quais outros conceitos têm
+  links apontando para ele (backlinks).
+
+## 7. Como criar um conceito
+
+1. Abra uma biblioteca (**📂 Abrir** ou **✨ Exemplo**).
+2. Clique em **＋ Novo** (ou `Ctrl+N`).
+3. Informe o **caminho** dentro da biblioteca, ex.: `projetos/novo.md`
+   (as pastas são criadas automaticamente).
+4. Preencha o **type** (obrigatório) e, opcionalmente, **title** e
+   **description**.
+5. Clique em **Criar**. O conceito é gerado com o frontmatter e um corpo inicial,
+   e já abre para edição.
+
+## 8. Como editar um conceito (editor visual)
+
+1. Selecione o conceito e clique em **✎ Editar**.
+2. Ajuste os campos do frontmatter no formulário (type, title, description,
+   resource, tags, timestamp e os campos extras em YAML).
+3. Edite o **corpo** no **editor visual (WYSIWYG)** — você escreve já vendo o
+   texto formatado, como em um editor de documentos.
+4. Clique em **💾 Salvar** (ou `Ctrl+S`). O arquivo `.md` é gravado no disco.
+5. **Cancelar** descarta as alterações não salvas.
+
+**Visual × Código:** use o botão **`<> Código`** para ver e editar o **Markdown
+cru**; volte em **`👁 Visual`** para a edição formatada. Útil para conferir
+exatamente o texto que será salvo.
+
+## 9. Barra de ferramentas do editor
+
+| Botão | Função |
+|---|---|
+| 👁 Visual / `<>` Código | Alterna entre edição formatada e Markdown cru |
+| ↶ / ↷ | Desfazer / Refazer |
+| **B** / *I* / ~~S~~ / `<>` | Negrito / Itálico / Tachado / Código inline |
+| H1 / H2 / H3 | Títulos de nível 1, 2 e 3 |
+| • / 1. / ☑ | Lista, lista numerada, lista de tarefas (checklist) |
+| &ldquo; / ⊞ / { } / — | Citação / Tabela / Bloco de código / Linha horizontal |
+| 🔗 / 🖼 | Inserir link / Inserir imagem (por URL) |
+| ⌫ | Limpar formatação (transforma o bloco em parágrafo) |
+| 🔗 Inserir conceito | Abre um seletor com busca dos conceitos da biblioteca e insere o **link interno** correto |
+
+Extras: **atalhos de teclado** (Ctrl+B, Ctrl+I, Ctrl+Z…), **colar Markdown** que
+vira formatação automaticamente, e o **menu "/"** — digite `/` numa linha vazia
+para inserir blocos (título, lista, tabela, etc.).
+
+## 10. Links internos e "Citado por"
+
+- Para ligar conceitos, use links Markdown apontando para o caminho do arquivo:
+  `[Texto](/projetos/atlas.md)`. O caminho começando com `/` é relativo à raiz
+  da biblioteca.
+- No editor visual, prefira o botão **🔗 Inserir conceito** — ele evita erros de
+  digitação no caminho.
+- Ao **visualizar** um conceito, clicar num link interno abre o conceito de
+  destino; links externos abrem no navegador; links para conceitos inexistentes
+  ficam **marcados em vermelho**.
+- **Citado por (backlinks):** o app calcula automaticamente quem aponta para o
+  conceito atual.
+
+## 11. Validação de conformidade
+
+Clique em **✓ Validar** para checar a biblioteca contra o OKF v0.1:
+
+- **Erros** (impedem a conformidade): arquivo sem frontmatter, YAML inválido, ou
+  `type` ausente/vazio.
+- **Avisos** (recomendações, não impedem conformidade): sem `title`, sem
+  `description`, ou link interno para um conceito que ainda não existe.
+
+Clique em um item para abrir o arquivo correspondente e corrigir.
+
+## 12. Grafo de relacionamentos
+
+Clique em **🕸 Grafo** para ver o mapa visual dos conceitos:
+
+- Cada **nó** é um conceito, **colorido por tipo** (veja a legenda) e
+  **dimensionado pelo número de conexões**.
+- As **setas** representam os links entre conceitos.
+- **Roda do mouse:** zoom · **arrastar o fundo:** mover · **arrastar um nó:**
+  reposicionar · **passar o mouse:** realça o nó e os vizinhos · **clicar num
+  nó:** abre o conceito.
+- O grafo se ajusta automaticamente ao tamanho da janela.
+
+## 13. Temas claro e escuro
+
+Use o botão **🌙/☀** na barra para alternar. Na primeira vez, o app segue o tema
+do Windows; depois, a sua escolha fica salva entre sessões.
+
+## 14. Atualizações automáticas
+
+A **versão instalada** do OKF Studio se atualiza sozinha: ao abrir, ela verifica
+se há uma versão nova, baixa em segundo plano e oferece **Reiniciar e instalar**
+(ou instala ao fechar o app). Há também **Ajuda ▸ Verificar atualizações…** para
+checar manualmente. *(A versão portátil não tem atualização automática.)*
+
+## 15. Atalhos de teclado
+
+| Atalho | Ação |
+|---|---|
+| `Ctrl+O` | Abrir biblioteca |
+| `Ctrl+N` | Novo conceito |
+| `Ctrl+S` | Salvar |
+| `Ctrl+R` | Recarregar a biblioteca |
+| `F1` | Abrir este manual |
+| `Esc` | Fechar telas/diálogos (grafo, validação, manual, modais) |
+| `Ctrl+B` / `Ctrl+I` / `Ctrl+Z` / `Ctrl+Y` | No editor: negrito / itálico / desfazer / refazer |
+
+## 16. Usando com uma IA (Claude)
+
+Como a biblioteca é só arquivos `.md` + Git, você pode pedir a uma IA para atuar
+como mantenedora do acervo: ingerir novas fontes, escrever e atualizar conceitos,
+manter os `index.md`/`log.md` e os links cruzados. Você faz a curadoria, a IA
+faz o trabalho de organização, e o OKF Studio mostra o resultado.
+
+## 17. Onde ficam os arquivos e backup
+
+Os conceitos são gravados diretamente na pasta que você abriu — não há cópia
+oculta nem banco de dados. Por isso, a melhor forma de versionar e fazer backup
+é manter a pasta em um repositório **Git**: você terá histórico completo das
+mudanças e poderá sincronizar entre máquinas.
+  </script>
 
   <script src="../node_modules/js-yaml/dist/js-yaml.min.js"></script>
   <script src="../node_modules/marked/lib/marked.umd.js"></script>
