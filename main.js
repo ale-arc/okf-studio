@@ -17,6 +17,7 @@ function createWindow() {
     minHeight: 600,
     title: 'OKF Studio',
     backgroundColor: '#1e1f23',
+    icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
