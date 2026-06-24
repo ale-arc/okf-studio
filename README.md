@@ -106,11 +106,19 @@ O destino já está configurado no `package.json`, em `build.publish`:
    ```
 
    Isso compila e envia os artefatos + o manifesto `latest.yml` para um
-   **release** no GitHub. Os apps já instalados detectam a nova versão e se
-   atualizam sozinhos.
+   **release** no GitHub (criado como *rascunho*).
+4. **Publique o rascunho** — é isso que torna a atualização visível aos apps:
 
-> Dica: o release pode ser criado como *rascunho*; o `electron-updater` só
-> enxerga releases **publicados** (não-rascunho e não-pré-lançamento).
+   ```bat
+   gh release edit vX.Y.Z --repo ale-arc/okf-studio --draft=false --latest
+   ```
+
+   (ou pela web: *Releases ▸ Edit ▸ Publish release*.) Os apps já instalados
+   detectam a nova versão e se atualizam sozinhos.
+
+> O `electron-updater` só enxerga releases **publicados** (não-rascunho e
+> não-pré-lançamento). Enquanto o release ficar como rascunho, ninguém recebe
+> a atualização.
 
 ---
 
