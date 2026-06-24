@@ -126,7 +126,7 @@ function loadBundle(res, name) {
   state.docs = res.docs || [];
   indexDocs();
   $('bundle-name').textContent = name + '  ·  ' + state.docs.length + ' arquivos';
-  ['btn-reload','btn-new','btn-graph','btn-validate','btn-claude','search','type-filter'].forEach(id => $(id).disabled = false);
+  ['btn-reload','btn-new','btn-graph','btn-validate','btn-claude','btn-git','search','type-filter'].forEach(id => $(id).disabled = false);
   buildTypeFilter();
   renderTree();
   closeOverlays();
@@ -208,7 +208,60 @@ function buildTypeFilter() {
 /* ---------- View states ---------- */
 function showEmpty(){ $('empty').classList.remove('hidden'); $('viewer').classList.add('hidden'); }
 function showViewer(){ $('empty').classList.add('hidden'); $('viewer').classList.remove('hidden'); }
-function closeOverlays(){ $('graph-view').classList.add('hidden'); $('validate-view').classList.add('hidden'); $('manual-view').classList.add('hidden'); }
+function closeOverlays(){ $('graph-view').classList.add('hidden'); $('validate-view').classList.add('hidden'); $('manual-view').classList.add('hidden'); $('git-view').classList.add('hidden'); }
+
+/* ---------- Painel Git ---------- */
+function showGit() {
+  if (!state.root) return;
+  closeOverlays();
+  $('git-view').classList.remove('hidden');
+  refreshGit();
+}
+async function refreshGit() {
+  let s;
+  try { s = await window.okf.git.status(); } catch (e) { s = { ok: false, error: String(e) }; }
+  renderGit(s);
+}
+function renderGit(s) {
+  const branch = $('git-branch'), list = $('git-list'), commit = $('git-commit'), norepo = $('git-norepo');
+  if (!s || !s.ok) {
+    norepo.classList.add('hidden'); commit.classList.add('hidden'); branch.textContent = '';
+    list.innerHTML = `<div class="git-empty">Erro: ${escapeHtml((s && s.error) || '')}</div>`;
+    return;
+  }
+  if (!s.repo) {
+    norepo.classList.remove('hidden'); commit.classList.add('hidden');
+    list.innerHTML = ''; branch.textContent = '';
+    return;
+  }
+  norepo.classList.add('hidden'); commit.classList.remove('hidden');
+  branch.textContent = s.branch ? ('branch: ' + s.branch) : '';
+  $('git-do-push').disabled = !s.hasRemote;
+  $('git-do-push').title = s.hasRemote ? 'Enviar (push)' : 'Sem remoto — adicione pelo terminal (git remote add origin …)';
+  if (!s.files.length) { list.innerHTML = '<div class="git-empty">Nada para commitar — tudo limpo.</div>'; return; }
+  list.innerHTML = s.files.map((f) => {
+    const cls = /D/.test(f.code) ? 'del' : (/[AR?]/.test(f.code) ? 'add' : 'mod');
+    return `<div class="git-item"><span class="git-code ${cls}">${escapeHtml(f.code || '?')}</span>` +
+           `<span class="git-path">${escapeHtml(f.path)}</span></div>`;
+  }).join('');
+}
+async function gitCommit() {
+  const msg = $('git-msg').value.trim();
+  if (!msg) { toast('Informe a mensagem do commit.', 'bad'); return; }
+  const r = await window.okf.git.commit(msg);
+  if (r && r.ok) { toast('Commit feito.', 'good'); $('git-msg').value = ''; refreshGit(); }
+  else toast('Erro no commit: ' + ((r && r.error) || ''), 'bad');
+}
+async function gitPush() {
+  const r = await window.okf.git.push();
+  if (r && r.ok) toast('Push concluído.', 'good');
+  else toast('Erro no push: ' + ((r && r.error) || '') + ' — faça login pelo terminal se necessário.', 'bad');
+}
+async function gitInit() {
+  const r = await window.okf.git.init();
+  if (r && r.ok) { toast('Repositório inicializado.', 'good'); refreshGit(); }
+  else toast('Erro: ' + ((r && r.error) || ''), 'bad');
+}
 
 /* ---------- Manual ---------- */
 let manualRendered = false;
@@ -756,9 +809,15 @@ function init() {
   $('btn-graph').onclick = showGraph;
   $('btn-validate').onclick = showValidation;
   $('btn-claude').onclick = openClaude;
+  $('btn-git').onclick = showGit;
+  $('git-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
+  $('git-refresh').onclick = refreshGit;
+  $('git-init').onclick = gitInit;
+  $('git-do-commit').onclick = gitCommit;
+  $('git-do-push').onclick = gitPush;
   $('disk-reload').onclick = () => { $('disk-banner').classList.add('hidden'); cancelEdit(); reloadFromDisk(); };
   $('disk-keep').onclick = () => $('disk-banner').classList.add('hidden');
-  window.okf.onBundleChanged(reloadFromDisk);
+  window.okf.onBundleChanged(() => { reloadFromDisk(); if (!$('git-view').classList.contains('hidden')) refreshGit(); });
   $('empty-open').onclick = openFolder;
   $('empty-sample').onclick = openSample;
   $('btn-edit').onclick = enterEdit;
@@ -802,7 +861,7 @@ function init() {
   wireUpdates();
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();

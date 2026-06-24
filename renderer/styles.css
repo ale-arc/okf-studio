@@ -160,8 +160,24 @@ button.update:disabled{opacity:1;color:#06281c}
 .okf-slash-item:hover{background:var(--accent);color:#fff}
 
 /* graph */
-#graph-view,#validate-view,#manual-view{position:absolute;inset:0;background:var(--bg);
+#graph-view,#validate-view,#manual-view,#git-view{position:absolute;inset:0;background:var(--bg);
   display:flex;flex-direction:column;z-index:10}
+
+/* git panel */
+.git-body{flex:1;min-height:0;display:flex;flex-direction:column;padding:14px 22px;
+  max-width:900px;margin:0 auto;width:100%}
+.git-norepo{text-align:center;color:var(--muted);padding:20px}
+.git-norepo p{margin-bottom:12px}
+.git-list{flex:1;min-height:0;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:12px}
+.git-empty{padding:14px;color:var(--muted)}
+.git-item{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--line)}
+.git-item:last-child{border-bottom:none}
+.git-code{font-family:Consolas,monospace;font-size:11px;font-weight:600;min-width:24px;text-align:center;
+  border-radius:4px;padding:1px 4px}
+.git-code.mod{color:var(--warn)} .git-code.add{color:var(--good)} .git-code.del{color:var(--bad)}
+.git-path{font-size:13px}
+.git-commit{display:flex;gap:8px}
+#git-msg{flex:1}
 
 /* manual */
 .manual-wrap{flex:1;min-height:0;display:flex}
