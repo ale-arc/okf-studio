@@ -11,6 +11,7 @@
   <header id="toolbar">
     <div class="brand">OKF&nbsp;Studio <span id="app-version" class="ver"></span></div>
     <div class="tools">
+      <button id="btn-theme" title="Alternar tema claro/escuro">🌙</button>
       <button id="btn-open" title="Abrir pasta da biblioteca (Ctrl+O)">📂 Abrir</button>
       <button id="btn-sample" title="Carregar biblioteca de exemplo">✨ Exemplo</button>
       <button id="btn-reload" title="Recarregar (Ctrl+R)" disabled>↻</button>
@@ -87,8 +88,39 @@
             <summary>Campos extras do frontmatter (YAML)</summary>
             <textarea id="e-extra" spellcheck="false" placeholder="status: Em andamento&#10;responsavel: Equipe X"></textarea>
           </details>
-          <label class="body-label">Corpo (Markdown)</label>
-          <textarea id="e-body" class="body-editor" spellcheck="false"></textarea>
+          <div id="editor-toolbar" class="editor-toolbar">
+            <span class="seg">
+              <button id="mode-visual" type="button" class="on">👁 Visual</button>
+              <button id="mode-source" type="button">&lt;&gt; Código</button>
+            </span>
+            <span class="tb-sep"></span>
+            <button type="button" data-cmd="undo" title="Desfazer (Ctrl+Z)">↶</button>
+            <button type="button" data-cmd="redo" title="Refazer (Ctrl+Y)">↷</button>
+            <span class="tb-sep"></span>
+            <button type="button" data-cmd="bold" title="Negrito (Ctrl+B)"><b>B</b></button>
+            <button type="button" data-cmd="italic" title="Itálico (Ctrl+I)"><i>I</i></button>
+            <button type="button" data-cmd="strike" title="Tachado"><s>S</s></button>
+            <button type="button" data-cmd="codeInline" title="Código inline">&lt;&gt;</button>
+            <span class="tb-sep"></span>
+            <button type="button" data-cmd="h1" title="Título 1">H1</button>
+            <button type="button" data-cmd="h2" title="Título 2">H2</button>
+            <button type="button" data-cmd="h3" title="Título 3">H3</button>
+            <span class="tb-sep"></span>
+            <button type="button" data-cmd="bulletList" title="Lista">•</button>
+            <button type="button" data-cmd="orderedList" title="Lista numerada">1.</button>
+            <button type="button" data-cmd="taskList" title="Lista de tarefas">☑</button>
+            <button type="button" data-cmd="blockquote" title="Citação">&ldquo;</button>
+            <button type="button" data-cmd="table" title="Tabela">⊞</button>
+            <button type="button" data-cmd="codeBlock" title="Bloco de código">{ }</button>
+            <button type="button" data-cmd="hr" title="Linha horizontal">—</button>
+            <span class="tb-sep"></span>
+            <button type="button" data-cmd="link" title="Link">🔗</button>
+            <button type="button" data-cmd="image" title="Imagem (URL)">🖼</button>
+            <button type="button" data-cmd="clear" title="Limpar formatação (parágrafo)">⌫</button>
+            <button type="button" id="tb-concept" class="tb-concept" title="Inserir link para um conceito da biblioteca">🔗 Inserir conceito</button>
+          </div>
+          <div id="milkdown" class="milkdown-host"></div>
+          <textarea id="e-body" class="body-editor hidden" spellcheck="false"></textarea>
         </div>
       </article>
 
@@ -139,12 +171,24 @@
     </div>
   </div>
 
+  <div id="concept-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Inserir link para conceito</h2>
+      <input id="cm-search" type="search" placeholder="Buscar conceito por título ou caminho…" />
+      <div id="cm-list" class="cm-list"></div>
+      <div class="modal-actions">
+        <button id="cm-cancel">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
   <script src="../node_modules/js-yaml/dist/js-yaml.min.js"></script>
   <script src="../node_modules/marked/lib/marked.umd.js"></script>
   <script src="../node_modules/cytoscape/dist/cytoscape.min.js"></script>
   <script src="okf.js"></script>
+  <script src="vendor/editor.bundle.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

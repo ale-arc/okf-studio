@@ -8,8 +8,31 @@ const state = {
   byId: new Map(),     // conceptId -> doc
   current: null,       // relPath of open doc
   editing: false,
-  graph: null
+  graph: null,
+  editorMode: 'visual',
+  editorBody: '',
 };
+
+/* ---------- Tema (claro/escuro) ---------- */
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('btn-theme');
+  if (btn) { btn.textContent = theme === 'light' ? '☀' : '🌙'; }
+  try { localStorage.setItem('okf-theme', theme); } catch (e) {}
+}
+function initTheme() {
+  let theme;
+  try { theme = localStorage.getItem('okf-theme'); } catch (e) {}
+  if (!theme) {
+    theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  applyTheme(theme);
+}
+function toggleTheme() { applyTheme(currentTheme() === 'light' ? 'dark' : 'light'); }
+window.__okfSetTheme = applyTheme; // usado pelo smoke test
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -139,6 +162,7 @@ function closeOverlays(){ $('graph-view').classList.add('hidden'); $('validate-v
 
 /* ---------- Open / render doc ---------- */
 function openDoc(relPath) {
+  if (state.editing && window.OKFEditor) { window.OKFEditor.destroy(); state.editing = false; }
   const doc = state.docs.find(d => d.relPath === relPath);
   if (!doc) return;
   state.current = relPath;
@@ -229,7 +253,7 @@ function rewireLinks(container, srcRel) {
 }
 
 /* ---------- Edit ---------- */
-function enterEdit() {
+async function enterEdit() {
   const doc = state.docs.find(d => d.relPath === state.current);
   if (!doc) return;
   state.editing = true;
@@ -242,14 +266,19 @@ function enterEdit() {
   const p = OKF.parse(doc.content);
   const f = p.frontmatter;
   const reserved = doc.reserved;
-  // For reserved files, hide frontmatter grid and edit the RAW content so any
-  // frontmatter they carry (e.g. okf_version in the root index.md) is preserved.
   $('edit-mode').querySelector('.edit-grid').style.display = reserved ? 'none' : '';
   $('extra-fm').style.display = reserved ? 'none' : '';
+
   if (reserved) {
+    // Reservados: só modo Código (conteúdo bruto completo), barra do editor oculta.
+    $('editor-toolbar').classList.add('hidden');
+    $('milkdown').classList.add('hidden');
+    $('e-body').classList.remove('hidden');
     $('e-body').value = doc.content;
     return;
   }
+
+  $('editor-toolbar').classList.remove('hidden');
   $('e-type').value = f.type || '';
   $('e-title').value = f.title || '';
   $('e-description').value = f.description || '';
@@ -260,12 +289,115 @@ function enterEdit() {
   const extra = {};
   Object.keys(f).forEach(k => { if (!known.includes(k)) extra[k] = f[k]; });
   $('e-extra').value = Object.keys(extra).length ? jsyaml.dump(extra).replace(/\n$/,'') : '';
-  $('e-body').value = p.body || '';
+
+  // Inicia em modo Visual com o corpo do conceito.
+  state.editorBody = p.body || '';
+  if (!window.OKFEditor) {
+    // Bundle do editor indisponível — degrada para o modo Código (textarea).
+    toast('Editor visual indisponível; usando modo Código.', 'bad');
+    state.editorMode = 'source';
+    $('milkdown').classList.add('hidden');
+    $('e-body').value = state.editorBody;
+    $('e-body').classList.remove('hidden');
+    setModeButtons('source');
+    return;
+  }
+  state.editorMode = 'visual';
+  $('e-body').classList.add('hidden');
+  $('milkdown').classList.remove('hidden');
+  setModeButtons('visual');
+  await window.OKFEditor.create($('milkdown'), state.editorBody, {
+    onChange: (md) => { state.editorBody = md; }
+  });
 }
 
-function cancelEdit() {
+function setModeButtons(mode) {
+  $('mode-visual').classList.toggle('on', mode === 'visual');
+  $('mode-source').classList.toggle('on', mode === 'source');
+}
+
+function openConceptPicker() {
+  if (state.editorMode !== 'visual') { toast('Disponível no modo Visual.', 'bad'); return; }
+  $('cm-search').value = '';
+  renderConceptList('');
+  $('concept-modal').classList.remove('hidden');
+  $('cm-search').focus();
+}
+function closeConceptPicker(){ $('concept-modal').classList.add('hidden'); }
+
+function renderConceptList(q) {
+  const ql = (q || '').toLowerCase().trim();
+  const list = $('cm-list');
+  const items = state.docs
+    .filter(d => !d.reserved && d.relPath !== state.current)
+    .map(d => {
+      const f = parsedOf(d).frontmatter;
+      return { relPath: d.relPath, title: f.title || d.name.replace(/\.md$/i,'') };
+    })
+    .filter(it => !ql || it.title.toLowerCase().includes(ql) || it.relPath.toLowerCase().includes(ql))
+    .sort((a,b) => a.title.localeCompare(b.title));
+  if (!items.length) { list.innerHTML = '<div class="cm-empty">Nenhum conceito encontrado.</div>'; return; }
+  list.innerHTML = items.map(it =>
+    `<div class="cm-item" data-rel="${escapeAttr(it.relPath)}" data-title="${escapeAttr(it.title)}">
+       <div class="cm-title">${escapeHtml(it.title)}</div>
+       <div class="cm-path">/${escapeHtml(it.relPath)}</div>
+     </div>`).join('');
+  list.querySelectorAll('.cm-item').forEach(el => el.addEventListener('click', () => {
+    window.OKFEditor.insertConceptLink('/' + el.dataset.rel, el.dataset.title);
+    closeConceptPicker();
+    window.OKFEditor.focus();
+  }));
+}
+
+function runToolbar(cmd) {
+  if (state.editorMode !== 'visual' || !window.OKFEditor) return;
+  if (cmd === 'taskList') { window.OKFEditor.taskList(); window.OKFEditor.focus(); return; }
+  if (cmd === 'link') {
+    const href = window.prompt('URL do link:');
+    if (href) window.OKFEditor.link(href);
+    window.OKFEditor.focus(); return;
+  }
+  if (cmd === 'image') {
+    const src = window.prompt('URL da imagem:');
+    if (src) window.OKFEditor.image(src);
+    window.OKFEditor.focus(); return;
+  }
+  window.OKFEditor.runCommand(cmd);
+  window.OKFEditor.focus();
+}
+
+async function setEditorMode(mode) {
+  const doc = state.docs.find(d => d.relPath === state.current);
+  if (!doc || doc.reserved || mode === state.editorMode) return;
+  if (mode === 'visual' && !window.OKFEditor) { toast('Editor visual indisponível.', 'bad'); return; }
+  if (mode === 'source') {
+    state.editorBody = window.OKFEditor.getMarkdown();
+    await window.OKFEditor.destroy();
+    $('milkdown').classList.add('hidden');
+    $('e-body').value = state.editorBody;
+    $('e-body').classList.remove('hidden');
+  } else {
+    state.editorBody = $('e-body').value;
+    $('e-body').classList.add('hidden');
+    $('milkdown').classList.remove('hidden');
+    await window.OKFEditor.create($('milkdown'), state.editorBody, {
+      onChange: (md) => { state.editorBody = md; }
+    });
+  }
+  state.editorMode = mode;
+  setModeButtons(mode);
+}
+
+function currentBodyMarkdown(doc) {
+  if (doc.reserved) return $('e-body').value;
+  if (state.editorMode === 'source') return $('e-body').value;
+  return window.OKFEditor.getMarkdown();
+}
+
+async function cancelEdit() {
   state.editing = false;
   const doc = state.docs.find(d => d.relPath === state.current);
+  if (window.OKFEditor) { await window.OKFEditor.destroy(); }
   renderConcept(doc);
 }
 
@@ -274,7 +406,7 @@ async function saveEdit() {
   if (!doc) return;
   let content;
   if (doc.reserved) {
-    content = $('e-body').value;
+    content = currentBodyMarkdown(doc);
   } else {
     const type = $('e-type').value.trim();
     if (!type) { toast('O campo "type" é obrigatório (OKF v0.1).', 'bad'); return; }
@@ -292,7 +424,7 @@ async function saveEdit() {
         if (ex && typeof ex === 'object') Object.assign(fm, ex);
       } catch (e) { toast('YAML inválido nos campos extras: ' + e.message, 'bad'); return; }
     }
-    content = OKF.serialize(fm, $('e-body').value);
+    content = OKF.serialize(fm, currentBodyMarkdown(doc));
   }
   try {
     await window.okf.writeFile({ root: state.root, relPath: doc.relPath, content });
@@ -301,6 +433,7 @@ async function saveEdit() {
     buildTypeFilter();
     renderTree();
     state.editing = false;
+    if (!doc.reserved && state.editorMode === 'visual' && window.OKFEditor) { await window.OKFEditor.destroy(); }
     renderConcept(doc);
     toast('Salvo em ' + doc.relPath, 'good');
   } catch (e) {
@@ -411,7 +544,8 @@ function showGraph() {
         'background-color': 'data(color)', 'label': 'data(label)',
         'color': '#e6e8ec', 'font-size': '11px', 'text-valign': 'bottom',
         'text-margin-y': 4, 'width': 26, 'height': 26,
-        'text-background-color': '#1e1f23', 'text-background-opacity': 0.85,
+        'text-background-color': getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#1e1f23',
+        'text-background-opacity': 0.85,
         'text-background-padding': 2 } },
       { selector: 'edge', style: {
         'width': 1.4, 'line-color': '#4a4f59', 'target-arrow-color': '#4a4f59',
@@ -464,6 +598,7 @@ function escapeAttr(s){ return escapeHtml(s); }
 
 /* ---------- Wire up ---------- */
 function init() {
+  $('btn-theme').onclick = toggleTheme;
   $('btn-open').onclick = openFolder;
   $('btn-sample').onclick = openSample;
   $('btn-reload').onclick = reload;
@@ -475,11 +610,19 @@ function init() {
   $('btn-edit').onclick = enterEdit;
   $('btn-save').onclick = saveEdit;
   $('btn-cancel').onclick = cancelEdit;
+  $('mode-visual').onclick = () => setEditorMode('visual');
+  $('mode-source').onclick = () => setEditorMode('source');
+  document.querySelectorAll('#editor-toolbar button[data-cmd]').forEach(btn => {
+    btn.addEventListener('click', () => runToolbar(btn.dataset.cmd));
+  });
   $('btn-delete').onclick = deleteCurrent;
   $('graph-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('validate-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('m-cancel').onclick = closeModal;
   $('m-create').onclick = createConcept;
+  $('tb-concept').onclick = openConceptPicker;
+  $('cm-cancel').onclick = closeConceptPicker;
+  $('cm-search').addEventListener('input', e => renderConceptList(e.target.value));
   $('e-now').onclick = () => $('e-timestamp').value = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   $('search').addEventListener('input', renderTree);
   $('type-filter').addEventListener('change', renderTree);
@@ -494,11 +637,12 @@ function init() {
   window.okf.onMenu('menu:graph', showGraph);
   window.okf.onMenu('menu:about', () => toast('OKF Studio ' + (appVersion ? 'v' + appVersion + ' · ' : '') + 'editor de bibliotecas Open Knowledge Format v0.1', 'good'));
 
+  initTheme();
   loadVersion();
   wireUpdates();
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModal(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();
