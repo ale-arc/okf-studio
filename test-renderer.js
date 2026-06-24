@@ -25,7 +25,7 @@ app.whenReady().then(async () => {
     marked: typeof window.marked,
     markedParse: typeof (window.marked && window.marked.parse),
     OKF: typeof window.OKF,
-    cytoscape: typeof window.cytoscape,
+    G6: typeof window.G6,
     jsyaml: typeof window.jsyaml,
     okfBridge: typeof window.okf,
     updateBridge: !!(window.okf && typeof window.okf.getVersion==='function' &&
@@ -88,7 +88,25 @@ app.whenReady().then(async () => {
   const okCommands = commands && commands.h1 && commands.task && commands.table;
   console.log('  toolbar commands:', JSON.stringify(commands));
 
-  const okGlobals = ['marked','OKF','cytoscape','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
+  const g6 = await win.webContents.executeJavaScript(`(async () => {
+    if (!window.G6 || !window.G6.Graph) return { loaded:false };
+    try {
+      const host = document.createElement('div');
+      host.style.width='400px'; host.style.height='300px';
+      document.body.appendChild(host);
+      const graph = new window.G6.Graph({ container: host, width:400, height:300,
+        data:{ nodes:[{id:'a',data:{}},{id:'b',data:{}}], edges:[{id:'e',source:'a',target:'b'}] },
+        layout:{ type:'force' } });
+      await Promise.race([ graph.render(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('render timeout')),5000)) ]);
+      const ok = !!graph.getNodeData('a');
+      graph.destroy(); host.remove();
+      return { loaded:true, rendered: ok };
+    } catch (err) { return { loaded:true, rendered:false, error:String(err && err.message || err) }; }
+  })()`);
+  const okGraph = g6 && g6.loaded && g6.rendered;
+  console.log('  G6 graph:', JSON.stringify(g6));
+
+  const okGlobals = ['marked','OKF','G6','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
   const okBridge = result.okfBridge === 'object' && result.updateBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
   const okTheme = result.themeToggle === true;
@@ -97,15 +115,15 @@ app.whenReady().then(async () => {
   console.log('RENDERER SMOKE TEST');
   console.log('  globals:', JSON.stringify({
     marked: result.marked, 'marked.parse': result.markedParse, OKF: result.OKF,
-    cytoscape: result.cytoscape, jsyaml: result.jsyaml, 'window.okf': result.okfBridge
+    G6: result.G6, jsyaml: result.jsyaml, 'window.okf': result.okfBridge
   }));
   console.log('  update bridge present:', result.updateBridge);
   console.log('  markdown render (table+h1):', okRender);
   console.log('  theme toggle muda data-theme:', result.themeToggle);
   console.log('  window.OKFEditor presente:', result.editorGlobal);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && cspViolations.length === 0
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && cspViolations.length === 0 ? 0 : 1);
 });

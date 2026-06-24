@@ -22,6 +22,11 @@ function applyTheme(theme) {
   const btn = document.getElementById('btn-theme');
   if (btn) { btn.textContent = theme === 'light' ? '☀' : '🌙'; }
   try { localStorage.setItem('okf-theme', theme); } catch (e) {}
+  // Re-render the graph so its colors follow the new theme.
+  if (typeof showGraph === 'function' && state && state.root &&
+      $('graph-view') && !$('graph-view').classList.contains('hidden')) {
+    showGraph();
+  }
 }
 function initTheme() {
   let theme;
@@ -517,9 +522,17 @@ function itemHtml(it, cls) {
     <div class="msg">${escapeHtml(it.msg)}</div></div>`;
 }
 
-/* ---------- Graph ---------- */
+/* ---------- Graph (AntV G6 v5) ---------- */
 const TYPE_COLORS = ['#5b9dff','#7c5cff','#43c08a','#e0a64a','#e06a6a','#4ec9d4','#d98ad9','#9aa0aa'];
-function showGraph() {
+let g6graph = null;
+
+function graphThemeColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = n => cs.getPropertyValue(n).trim();
+  return { text: v('--text'), muted: v('--muted'), line: v('--line'), bg: v('--bg') };
+}
+
+async function showGraph() {
   if (!state.root) return;
   closeOverlays();
   $('graph-view').classList.remove('hidden');
@@ -527,34 +540,64 @@ function showGraph() {
   const types = [...new Set(g.nodes.map(n => n.type))];
   const colorOf = t => TYPE_COLORS[types.indexOf(t) % TYPE_COLORS.length];
 
-  const elements = [];
-  for (const n of g.nodes) elements.push({ data: { id: n.id, label: n.title, type: n.type, rel: n.relPath, color: colorOf(n.type) } });
-  let edgeId = 0;
-  for (const e of g.edges) {
-    if (!e.exists) continue; // only edges to existing concepts
-    elements.push({ data: { id: 'e'+(edgeId++), source: e.source, target: e.target } });
-  }
-  $('graph-stats').textContent = `${g.nodes.length} conceitos · ${edgeId} relações`;
-
-  const cy = cytoscape({
-    container: $('cy'),
-    elements,
-    style: [
-      { selector: 'node', style: {
-        'background-color': 'data(color)', 'label': 'data(label)',
-        'color': '#e6e8ec', 'font-size': '11px', 'text-valign': 'bottom',
-        'text-margin-y': 4, 'width': 26, 'height': 26,
-        'text-background-color': getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#1e1f23',
-        'text-background-opacity': 0.85,
-        'text-background-padding': 2 } },
-      { selector: 'edge', style: {
-        'width': 1.4, 'line-color': '#4a4f59', 'target-arrow-color': '#4a4f59',
-        'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'arrow-scale': 0.9 } },
-      { selector: 'node:selected', style: { 'border-width': 3, 'border-color': '#fff' } }
-    ],
-    layout: { name: 'cose', animate: false, padding: 30, nodeRepulsion: 6000, idealEdgeLength: 90 }
+  // degree (only over existing edges) → drives node size
+  const deg = {};
+  g.edges.forEach(e => {
+    if (e.exists) { deg[e.source] = (deg[e.source] || 0) + 1; deg[e.target] = (deg[e.target] || 0) + 1; }
   });
-  cy.on('tap', 'node', evt => openDoc(evt.target.data('rel')));
+  const col = graphThemeColors();
+
+  const data = {
+    nodes: g.nodes.map(n => ({
+      id: n.id,
+      data: { label: n.title, type: n.type, rel: n.relPath, color: colorOf(n.type), deg: deg[n.id] || 0 }
+    })),
+    edges: g.edges.filter(e => e.exists).map((e, i) => ({ id: 'e' + i, source: e.source, target: e.target }))
+  };
+  $('graph-stats').textContent = `${data.nodes.length} conceitos · ${data.edges.length} relações`;
+
+  if (g6graph) { g6graph.destroy(); g6graph = null; }
+  const host = $('cy');
+
+  g6graph = new G6.Graph({
+    container: host,
+    autoResize: true,
+    autoFit: 'view',
+    theme: currentTheme() === 'light' ? 'light' : 'dark',
+    data,
+    node: {
+      style: {
+        fill: d => d.data.color,
+        stroke: d => d.data.color,
+        lineWidth: 0,
+        size: d => 24 + (d.data.deg || 0) * 6,
+        labelText: d => d.data.label,
+        labelPlacement: 'bottom',
+        labelFill: col.text,
+        labelFontSize: 12,
+        labelBackground: false
+      },
+      state: { active: { lineWidth: 3, stroke: col.text } }
+    },
+    edge: {
+      style: { stroke: col.muted || col.line, lineWidth: 1.4, endArrow: true, opacity: 0.55, curveOffset: 18 },
+      state: { active: { stroke: col.text, opacity: 1 } }
+    },
+    // Pure-JS Fruchterman-style force layout (CSP-safe, no WASM). Chosen over
+    // 'd3-force' because the latter is animated and its render() promise can
+    // stall in a non-painting context (e.g. the headless smoke test).
+    layout: { type: 'force', linkDistance: 130, nodeStrength: -260, edgeStrength: 0.7, preventOverlap: true, factor: 2 },
+    behaviors: ['zoom-canvas', 'drag-canvas', 'drag-element', { type: 'hover-activate', degree: 1 }]
+  });
+  await g6graph.render();
+
+  g6graph.on('node:click', (e) => {
+    const id = e.target && e.target.id != null ? e.target.id : e.itemId;
+    if (id == null) return;
+    const nd = g6graph.getNodeData(id);
+    const rel = nd && nd.data ? nd.data.rel : null;
+    if (rel) openDoc(rel);
+  });
 
   $('graph-legend').innerHTML = types.map(t =>
     `<span><span class="dot" style="background:${colorOf(t)}"></span>${escapeHtml(t)}</span>`).join('');
@@ -616,7 +659,11 @@ function init() {
     btn.addEventListener('click', () => runToolbar(btn.dataset.cmd));
   });
   $('btn-delete').onclick = deleteCurrent;
-  $('graph-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
+  $('graph-close').onclick = () => {
+    if (g6graph) { g6graph.destroy(); g6graph = null; }
+    closeOverlays();
+    if (state.current) showViewer();
+  };
   $('validate-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('m-cancel').onclick = closeModal;
   $('m-create').onclick = createConcept;

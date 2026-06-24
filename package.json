@@ -16,6 +16,7 @@
     "publish": "npm run build:editor && electron-builder --win --x64 --publish always"
   },
   "dependencies": {
+    "@antv/g6": "^5.1.1",
     "@milkdown/core": "^7.21.2",
     "@milkdown/ctx": "^7.21.2",
     "@milkdown/plugin-clipboard": "^7.21.2",
@@ -26,7 +27,6 @@
     "@milkdown/preset-gfm": "^7.21.2",
     "@milkdown/prose": "^7.21.2",
     "@milkdown/utils": "^7.21.2",
-    "cytoscape": "^3.34.0",
     "electron-updater": "^6.8.9",
     "js-yaml": "^4.1.0",
     "marked": "^18.0.5"
