@@ -306,6 +306,39 @@ function setModeButtons(mode) {
   $('mode-source').classList.toggle('on', mode === 'source');
 }
 
+function openConceptPicker() {
+  if (state.editorMode !== 'visual') { toast('Disponível no modo Visual.', 'bad'); return; }
+  $('cm-search').value = '';
+  renderConceptList('');
+  $('concept-modal').classList.remove('hidden');
+  $('cm-search').focus();
+}
+function closeConceptPicker(){ $('concept-modal').classList.add('hidden'); }
+
+function renderConceptList(q) {
+  const ql = (q || '').toLowerCase().trim();
+  const list = $('cm-list');
+  const items = state.docs
+    .filter(d => !d.reserved && d.relPath !== state.current)
+    .map(d => {
+      const f = parsedOf(d).frontmatter;
+      return { relPath: d.relPath, title: f.title || d.name.replace(/\.md$/i,'') };
+    })
+    .filter(it => !ql || it.title.toLowerCase().includes(ql) || it.relPath.toLowerCase().includes(ql))
+    .sort((a,b) => a.title.localeCompare(b.title));
+  if (!items.length) { list.innerHTML = '<div class="cm-empty">Nenhum conceito encontrado.</div>'; return; }
+  list.innerHTML = items.map(it =>
+    `<div class="cm-item" data-rel="${escapeAttr(it.relPath)}" data-title="${escapeAttr(it.title)}">
+       <div class="cm-title">${escapeHtml(it.title)}</div>
+       <div class="cm-path">/${escapeHtml(it.relPath)}</div>
+     </div>`).join('');
+  list.querySelectorAll('.cm-item').forEach(el => el.addEventListener('click', () => {
+    window.OKFEditor.insertConceptLink('/' + el.dataset.rel, el.dataset.title);
+    closeConceptPicker();
+    window.OKFEditor.focus();
+  }));
+}
+
 function runToolbar(cmd) {
   if (state.editorMode !== 'visual' || !window.OKFEditor) return;
   if (cmd === 'taskList') { window.OKFEditor.taskList(); window.OKFEditor.focus(); return; }
@@ -576,6 +609,9 @@ function init() {
   $('validate-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('m-cancel').onclick = closeModal;
   $('m-create').onclick = createConcept;
+  $('tb-concept').onclick = openConceptPicker;
+  $('cm-cancel').onclick = closeConceptPicker;
+  $('cm-search').addEventListener('input', e => renderConceptList(e.target.value));
   $('e-now').onclick = () => $('e-timestamp').value = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   $('search').addEventListener('input', renderTree);
   $('type-filter').addEventListener('change', renderTree);
@@ -595,7 +631,7 @@ function init() {
   wireUpdates();
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModal(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();

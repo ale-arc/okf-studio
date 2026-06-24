@@ -47,6 +47,8 @@ app.whenReady().then(async () => {
     document.body.appendChild(host);
     const md = '# Título\\n\\nTexto **negrito** e *itálico*.\\n\\n- item A\\n- item B\\n\\n- [ ] tarefa\\n\\n| a | b |\\n| --- | --- |\\n| 1 | 2 |\\n\\n[Atlas](/projetos/atlas.md)\\n';
     await window.OKFEditor.create(host, md, {});
+    window.OKFEditor.cursorEnd();
+    window.OKFEditor.insertConceptLink('/processos/onboarding-cliente.md', 'Onboarding');
     const out = window.OKFEditor.getMarkdown();
     await window.OKFEditor.destroy();
     host.remove();
@@ -56,10 +58,11 @@ app.whenReady().then(async () => {
       list: /[-*] item A/.test(out),
       task: /[-*] \\[[ xX]\\] tarefa/.test(out),
       table: /\\| a \\| b \\|/.test(out),
-      link: /\\]\\(\\/projetos\\/atlas\\.md\\)/.test(out)
+      link: /\\]\\(\\/projetos\\/atlas\\.md\\)/.test(out),
+      concept: /\\[Onboarding\\]\\(\\/processos\\/onboarding-cliente\\.md\\)/.test(out),
     };
   })()`);
-  const okRound = roundtrip && roundtrip.heading && roundtrip.bold && roundtrip.list && roundtrip.task && roundtrip.table && roundtrip.link;
+  const okRound = roundtrip && roundtrip.heading && roundtrip.bold && roundtrip.list && roundtrip.task && roundtrip.table && roundtrip.link && roundtrip.concept;
   console.log('  round-trip Markdown:', JSON.stringify(roundtrip));
 
   const commands = await win.webContents.executeJavaScript(`(async () => {

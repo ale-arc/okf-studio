@@ -175,6 +175,14 @@ button.update:disabled{opacity:1;color:#06281c}
 .modal-card input{font-size:14px;color:var(--text)}
 .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:8px}
 
+.cm-list{max-height:46vh;overflow:auto;margin:10px 0;border:1px solid var(--line);border-radius:8px}
+.cm-list .cm-item{padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--line)}
+.cm-list .cm-item:last-child{border-bottom:none}
+.cm-list .cm-item:hover{background:var(--panel2)}
+.cm-list .cm-item .cm-title{font-weight:600}
+.cm-list .cm-item .cm-path{font-size:11px;color:var(--muted)}
+.cm-list .cm-empty{padding:10px;color:var(--muted)}
+
 /* toast */
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
   background:var(--panel2);border:1px solid var(--line);border-radius:9px;

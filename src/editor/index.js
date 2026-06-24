@@ -93,6 +93,18 @@ export function focus() {
   editor.action((ctx) => { ctx.get(editorViewCtx).focus(); });
 }
 
+export function cursorEnd() {
+  if (!editor) return;
+  editor.action((ctx) => {
+    const view = ctx.get(editorViewCtx);
+    const { doc } = view.state;
+    view.dispatch(view.state.tr.setSelection(
+      view.state.selection.constructor.atEnd(doc)
+    ));
+    view.focus();
+  });
+}
+
 export function setTheme(theme) {
   // O editor herda as variáveis CSS do tema via [data-theme]; nada a fazer.
   void theme;
