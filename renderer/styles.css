@@ -4,6 +4,12 @@
   --good:#43c08a; --warn:#e0a64a; --bad:#e06a6a;
   --chip:#33373f;
 }
+:root[data-theme="light"]{
+  --bg:#f6f7f9; --panel:#ffffff; --panel2:#eef0f4; --line:#d8dce3;
+  --text:#1c1e22; --muted:#5b6270; --accent:#2f6fe0; --accent2:#6b4dff;
+  --good:#1f9d6b; --warn:#b9791f; --bad:#d24b4b;
+  --chip:#e7eaf0;
+}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,sans-serif;
   background:var(--bg);color:var(--text);font-size:14px}
@@ -28,6 +34,7 @@ code{background:#15161a;padding:1px 5px;border-radius:4px;font-size:.92em}
   background:var(--panel);padding:8px 12px;gap:8px}
 .brand{font-weight:700;letter-spacing:.5px;color:var(--accent)}
 .brand .ver{font-weight:400;font-size:11px;color:var(--muted);letter-spacing:0}
+#btn-theme{font-size:14px;line-height:1;padding:6px 9px}
 button.update{background:var(--good);border-color:var(--good);color:#06281c;font-weight:600}
 button.update:hover:not(:disabled){background:#36a878;border-color:#36a878}
 button.update:disabled{opacity:1;color:#06281c}

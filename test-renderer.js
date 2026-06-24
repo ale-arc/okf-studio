@@ -31,12 +31,20 @@ app.whenReady().then(async () => {
     updateBridge: !!(window.okf && typeof window.okf.getVersion==='function' &&
       typeof window.okf.checkForUpdates==='function' && typeof window.okf.installUpdate==='function' &&
       typeof window.okf.onUpdateStatus==='function'),
-    renderHtml: (window.marked ? window.marked.parse('# H\\n\\n| a | b |\\n|---|---|\\n| 1 | 2 |') : '')
+    renderHtml: (window.marked ? window.marked.parse('# H\\n\\n| a | b |\\n|---|---|\\n| 1 | 2 |') : ''),
+    themeToggle: (() => {
+      const before = document.documentElement.getAttribute('data-theme');
+      window.__okfSetTheme && window.__okfSetTheme(before === 'light' ? 'dark' : 'light');
+      const after = document.documentElement.getAttribute('data-theme');
+      window.__okfSetTheme && window.__okfSetTheme(before || 'dark');
+      return !!(before !== null && after !== null && before !== after);
+    })(),
   }))()`);
 
   const okGlobals = ['marked','OKF','cytoscape','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
   const okBridge = result.okfBridge === 'object' && result.updateBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
+  const okTheme = result.themeToggle === true;
 
   console.log('RENDERER SMOKE TEST');
   console.log('  globals:', JSON.stringify({
@@ -45,9 +53,10 @@ app.whenReady().then(async () => {
   }));
   console.log('  update bridge present:', result.updateBridge);
   console.log('  markdown render (table+h1):', okRender);
+  console.log('  theme toggle muda data-theme:', result.themeToggle);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
-  console.log(okGlobals && okBridge && okRender && cspViolations.length === 0
+  console.log(okGlobals && okBridge && okRender && okTheme && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && cspViolations.length === 0 ? 0 : 1);
 });

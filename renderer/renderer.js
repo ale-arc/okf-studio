@@ -11,6 +11,27 @@ const state = {
   graph: null
 };
 
+/* ---------- Tema (claro/escuro) ---------- */
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('btn-theme');
+  if (btn) { btn.textContent = theme === 'light' ? '☀' : '🌙'; }
+  try { localStorage.setItem('okf-theme', theme); } catch (e) {}
+}
+function initTheme() {
+  let theme;
+  try { theme = localStorage.getItem('okf-theme'); } catch (e) {}
+  if (!theme) {
+    theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  applyTheme(theme);
+}
+function toggleTheme() { applyTheme(currentTheme() === 'light' ? 'dark' : 'light'); }
+window.__okfSetTheme = applyTheme; // usado pelo smoke test
+
 marked.setOptions({ gfm: true, breaks: false });
 
 /* Memoized OKF.parse — avoids re-parsing every doc's YAML on each keystroke. */
@@ -411,7 +432,8 @@ function showGraph() {
         'background-color': 'data(color)', 'label': 'data(label)',
         'color': '#e6e8ec', 'font-size': '11px', 'text-valign': 'bottom',
         'text-margin-y': 4, 'width': 26, 'height': 26,
-        'text-background-color': '#1e1f23', 'text-background-opacity': 0.85,
+        'text-background-color': getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#1e1f23',
+        'text-background-opacity': 0.85,
         'text-background-padding': 2 } },
       { selector: 'edge', style: {
         'width': 1.4, 'line-color': '#4a4f59', 'target-arrow-color': '#4a4f59',
@@ -464,6 +486,7 @@ function escapeAttr(s){ return escapeHtml(s); }
 
 /* ---------- Wire up ---------- */
 function init() {
+  $('btn-theme').onclick = toggleTheme;
   $('btn-open').onclick = openFolder;
   $('btn-sample').onclick = openSample;
   $('btn-reload').onclick = reload;
@@ -494,6 +517,7 @@ function init() {
   window.okf.onMenu('menu:graph', showGraph);
   window.okf.onMenu('menu:about', () => toast('OKF Studio ' + (appVersion ? 'v' + appVersion + ' · ' : '') + 'editor de bibliotecas Open Knowledge Format v0.1', 'good'));
 
+  initTheme();
   loadVersion();
   wireUpdates();
 
