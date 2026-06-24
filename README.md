@@ -47,6 +47,12 @@ arquivos `.md` que você (e agentes de IA como o Claude) podem ler e manter.
 - **Painel Git** (botão ⎇ Git): vê os arquivos alterados, faz **commit** e
   **push** da biblioteca sem sair do app; oferece **git init** se a pasta ainda
   não for um repositório. O status atualiza ao vivo conforme os arquivos mudam.
+- **Busca no conteúdo** — a busca encontra o termo também no corpo dos conceitos
+  (não só título/tags).
+- **Paleta de comandos** (`Ctrl+P`) — pular para qualquer conceito ou disparar
+  ações pelo teclado.
+- **Modelos por tipo** — ao criar um conceito, escolha um modelo (Projeto,
+  Processo, Métrica, Referência, Playbook) que gera a estrutura do corpo.
 
 ---
 
