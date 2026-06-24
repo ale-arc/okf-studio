@@ -603,6 +603,64 @@ async function deleteCurrent() {
 }
 
 /* ---------- New concept modal ---------- */
+/* ---------- Paleta de comandos (Ctrl+P) ---------- */
+let paletteItems = [], paletteSel = 0;
+function paletteActions() {
+  const lib = !!state.root;
+  return [
+    { label: 'Novo conceito', run: openModal, needsLib: true },
+    { label: 'Grafo de relacionamentos', run: showGraph, needsLib: true },
+    { label: 'Validar conformidade', run: showValidation, needsLib: true },
+    { label: 'Painel Git', run: showGit, needsLib: true },
+    { label: 'Claude Code (terminal)', run: openClaude, needsLib: true },
+    { label: 'Recarregar biblioteca', run: reload, needsLib: true },
+    { label: 'Manual do OKF Studio', run: showManual, needsLib: false },
+    { label: 'Alternar tema claro/escuro', run: toggleTheme, needsLib: false },
+    { label: 'Abrir biblioteca…', run: openFolder, needsLib: false },
+    { label: 'Carregar biblioteca de exemplo', run: openSample, needsLib: false }
+  ].filter(a => !a.needsLib || lib).map(a => ({ kind: 'ação', label: a.label, sub: '', run: a.run }));
+}
+function paletteConcepts() {
+  if (!state.root) return [];
+  return state.docs.filter(d => !d.reserved).map(d => {
+    const f = parsedOf(d).frontmatter;
+    return { kind: 'conceito', label: f.title || d.name.replace(/\.md$/i, ''), sub: d.relPath, run: () => openDoc(d.relPath) };
+  });
+}
+function openPalette() {
+  $('palette-input').value = '';
+  renderPalette('');
+  $('palette').classList.remove('hidden');
+  $('palette-input').focus();
+}
+function closePalette() { $('palette').classList.add('hidden'); }
+function renderPalette(q) {
+  const ql = (q || '').toLowerCase().trim();
+  const all = paletteActions().concat(paletteConcepts());
+  paletteItems = all.filter(it => !ql || it.label.toLowerCase().includes(ql) || (it.sub && it.sub.toLowerCase().includes(ql)));
+  paletteSel = 0;
+  const list = $('palette-list');
+  if (!paletteItems.length) { list.innerHTML = '<div class="pal-empty">Nada encontrado.</div>'; return; }
+  list.innerHTML = paletteItems.map((it, i) =>
+    `<div class="pal-item${i === 0 ? ' sel' : ''}" data-i="${i}">` +
+    `<span class="pal-kind">${it.kind}</span><span class="pal-label">${escapeHtml(it.label)}</span>` +
+    (it.sub ? `<span class="pal-sub">${escapeHtml(it.sub)}</span>` : '') + `</div>`).join('');
+  list.querySelectorAll('.pal-item').forEach(el => el.addEventListener('click', () => activatePalette(+el.dataset.i)));
+}
+function movePalette(delta) {
+  if (!paletteItems.length) return;
+  paletteSel = (paletteSel + delta + paletteItems.length) % paletteItems.length;
+  const els = $('palette-list').querySelectorAll('.pal-item');
+  els.forEach((el, i) => el.classList.toggle('sel', i === paletteSel));
+  if (els[paletteSel]) els[paletteSel].scrollIntoView({ block: 'nearest' });
+}
+function activatePalette(i) {
+  const it = paletteItems[typeof i === 'number' ? i : paletteSel];
+  if (!it) return;
+  closePalette();
+  it.run();
+}
+
 function openModal() {
   if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
   ['m-path','m-type','m-title','m-description'].forEach(id => $(id).value = '');
@@ -858,6 +916,14 @@ function init() {
     const tpl = CONCEPT_TEMPLATES[$('m-template').value];
     if (tpl && tpl.type && !$('m-type').value.trim()) $('m-type').value = tpl.type;
   });
+  $('palette-input').addEventListener('input', (e) => renderPalette(e.target.value));
+  $('palette-input').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); movePalette(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); movePalette(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); activatePalette(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
+  });
+  $('palette').addEventListener('click', (e) => { if (e.target === $('palette')) closePalette(); });
   $('tb-concept').onclick = openConceptPicker;
   $('cm-cancel').onclick = closeConceptPicker;
   $('cm-search').addEventListener('input', e => renderConceptList(e.target.value));
@@ -881,7 +947,8 @@ function init() {
   wireUpdates();
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); openPalette(); return; }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();
