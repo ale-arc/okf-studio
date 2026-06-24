@@ -39,8 +39,28 @@ app.whenReady().then(async () => {
       window.__okfSetTheme && window.__okfSetTheme(before || 'dark');
       return !!(before !== null && after !== null && before !== after);
     })(),
-    editorGlobal: !!(window.OKFEditor && typeof window.OKFEditor.ping === 'function' && window.OKFEditor.ping() === 'okf-editor-ready'),
+    editorGlobal: !!(window.OKFEditor && typeof window.OKFEditor.create === 'function' && typeof window.OKFEditor.getMarkdown === 'function' && typeof window.OKFEditor.destroy === 'function'),
   }))()`);
+
+  const roundtrip = await win.webContents.executeJavaScript(`(async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const md = '# Título\\n\\nTexto **negrito** e *itálico*.\\n\\n- item A\\n- item B\\n\\n- [ ] tarefa\\n\\n| a | b |\\n| --- | --- |\\n| 1 | 2 |\\n\\n[Atlas](/projetos/atlas.md)\\n';
+    await window.OKFEditor.create(host, md, {});
+    const out = window.OKFEditor.getMarkdown();
+    await window.OKFEditor.destroy();
+    host.remove();
+    return {
+      heading: /# Título/.test(out),
+      bold: /\\*\\*negrito\\*\\*/.test(out),
+      list: /[-*] item A/.test(out),
+      task: /[-*] \\[[ xX]\\] tarefa/.test(out),
+      table: /\\| a \\| b \\|/.test(out),
+      link: /\\]\\(\\/projetos\\/atlas\\.md\\)/.test(out)
+    };
+  })()`);
+  const okRound = roundtrip && roundtrip.heading && roundtrip.bold && roundtrip.list && roundtrip.task && roundtrip.table && roundtrip.link;
+  console.log('  round-trip Markdown:', JSON.stringify(roundtrip));
 
   const okGlobals = ['marked','OKF','cytoscape','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
   const okBridge = result.okfBridge === 'object' && result.updateBridge === true;
@@ -58,8 +78,8 @@ app.whenReady().then(async () => {
   console.log('  theme toggle muda data-theme:', result.themeToggle);
   console.log('  window.OKFEditor presente:', result.editorGlobal);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && cspViolations.length === 0
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && cspViolations.length === 0 ? 0 : 1);
 });
