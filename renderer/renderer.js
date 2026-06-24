@@ -47,6 +47,13 @@ function parsedOf(doc) {
   return doc._p;
 }
 
+/* Timestamps ISO são lidos pelo js-yaml como Date — formata de volta para ISO
+   (sem milissegundos) para não corromper o campo ao exibir/editar/salvar. */
+function fmtTimestamp(v) {
+  if (v instanceof Date) return v.toISOString().replace(/\.\d+Z$/, 'Z');
+  return String(v);
+}
+
 /* ---------- Toast ---------- */
 let toastTimer;
 function toast(msg, kind) {
@@ -237,7 +244,7 @@ function renderConcept(doc) {
       (f.description ? `<div class="desc">${escapeHtml(f.description)}</div>` : '') +
       (tags.length ? `<div class="fm-row">${tags.map(t=>`<span class="tag">${escapeHtml(String(t))}</span>`).join('')}</div>` : '') +
       (f.resource ? `<div class="fm-row"><span class="k">resource:</span> <a href="#" data-ext="${escapeAttr(f.resource)}">${escapeHtml(f.resource)}</a></div>` : '') +
-      (f.timestamp ? `<div class="fm-row"><span class="k">timestamp:</span> ${escapeHtml(String(f.timestamp))}</div>` : '') +
+      (f.timestamp ? `<div class="fm-row"><span class="k">timestamp:</span> ${escapeHtml(fmtTimestamp(f.timestamp))}</div>` : '') +
       (extra.length ? `<div class="fm-row">${extra.map(k=>`<span class="k">${escapeHtml(k)}:</span> ${escapeHtml(String(f[k]))}`).join('&nbsp;&nbsp;')}</div>` : '');
     fm.querySelectorAll('a[data-ext]').forEach(a =>
       a.addEventListener('click', e => { e.preventDefault(); window.okf.openExternal(a.dataset.ext); }));
@@ -318,7 +325,7 @@ async function enterEdit() {
   $('e-description').value = f.description || '';
   $('e-resource').value = f.resource || '';
   $('e-tags').value = Array.isArray(f.tags) ? f.tags.join(', ') : (f.tags || '');
-  $('e-timestamp').value = f.timestamp ? String(f.timestamp) : '';
+  $('e-timestamp').value = f.timestamp ? fmtTimestamp(f.timestamp) : '';
   const known = ['type','title','description','resource','tags','timestamp'];
   const extra = {};
   Object.keys(f).forEach(k => { if (!known.includes(k)) extra[k] = f[k]; });
