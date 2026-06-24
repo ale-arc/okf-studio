@@ -161,7 +161,8 @@ function renderTree() {
     const tags = Array.isArray(p.frontmatter.tags) ? p.frontmatter.tags.join(' ') : '';
     // filters
     if (typeF && type !== typeF) continue;
-    if (q && !(title.toLowerCase().includes(q) || id.toLowerCase().includes(q) || tags.toLowerCase().includes(q))) continue;
+    const body = (p.body || '').toLowerCase();
+    if (q && !(title.toLowerCase().includes(q) || id.toLowerCase().includes(q) || tags.toLowerCase().includes(q) || body.includes(q))) continue;
 
     const dir = d.relPath.includes('/') ? d.relPath.replace(/\/[^/]*$/,'') : '(raiz)';
     if (!groups.has(dir)) groups.set(dir, []);
