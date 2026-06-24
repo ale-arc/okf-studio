@@ -12,6 +12,7 @@
     "test": "node test-okf.js",
     "test:ui": "electron test-renderer.js",
     "test:watch": "node test-watcher.js",
+    "test:git": "node test-git.js",
     "make:icon": "electron tools/make-icon.js",
     "dist": "npm run build:editor && electron-builder --win --x64",
     "dist:portable": "npm run build:editor && electron-builder --win portable --x64",

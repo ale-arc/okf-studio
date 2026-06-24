@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
 const { createWatcher } = require('./watcher.js');
+const { registerGitHandlers } = require('./git.js');
 
 let mainWindow = null;
 let manualUpdateCheck = false; // true when the user clicked "Verificar atualizações"
@@ -303,6 +304,8 @@ ipcMain.handle('claude:open', async () => {
 ipcMain.handle('app:version', async () => app.getVersion());
 ipcMain.handle('update:check', async () => { checkForUpdates(true); return true; });
 ipcMain.handle('update:install', async () => { setImmediate(() => autoUpdater.quitAndInstall()); return true; });
+
+registerGitHandlers(ipcMain, () => currentRoot);
 
 app.whenReady().then(() => {
   createWindow();
