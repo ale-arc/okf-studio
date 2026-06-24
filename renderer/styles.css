@@ -115,6 +115,29 @@ button.update:disabled{opacity:1;color:#06281c}
 .body-editor{width:100%;height:42vh;font-family:Consolas,"Courier New",monospace;
   font-size:13px;line-height:1.5}
 
+/* editor wysiwyg */
+.editor-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;
+  padding:6px;background:var(--panel)}
+.editor-toolbar .seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.editor-toolbar .seg button{border:none;border-radius:0;background:var(--panel2)}
+.editor-toolbar .seg button.on{background:var(--accent);color:#fff}
+.editor-toolbar button{font-size:12px;padding:4px 8px}
+.editor-toolbar .tb-sep{width:1px;height:18px;background:var(--line);margin:0 2px}
+.editor-toolbar .tb-concept{margin-left:auto;background:var(--good);color:#06281c;
+  border-color:var(--good);font-weight:600}
+.milkdown-host{border:1px solid var(--line);border-radius:0 0 8px 8px;min-height:42vh;
+  padding:6px 12px;background:var(--bg);overflow:auto}
+.milkdown-host .ProseMirror{outline:none;line-height:1.6;min-height:38vh}
+.milkdown-host .ProseMirror h1,.milkdown-host .ProseMirror h2,.milkdown-host .ProseMirror h3{
+  border-bottom:1px solid var(--line);padding-bottom:4px}
+.milkdown-host .ProseMirror a{color:var(--accent)}
+.milkdown-host .ProseMirror table{border-collapse:collapse}
+.milkdown-host .ProseMirror th,.milkdown-host .ProseMirror td{border:1px solid var(--line);padding:6px 10px}
+.milkdown-host .ProseMirror pre{background:var(--panel2);padding:10px;border-radius:8px;overflow:auto}
+.milkdown-host .ProseMirror blockquote{border-left:3px solid var(--accent);margin:8px 0;padding:2px 12px;color:var(--muted)}
+.milkdown-host .ProseMirror code{background:var(--panel2);padding:1px 5px;border-radius:4px}
+
 /* graph */
 #graph-view,#validate-view{position:absolute;inset:0;background:var(--bg);
   display:flex;flex-direction:column}

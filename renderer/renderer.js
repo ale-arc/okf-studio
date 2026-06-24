@@ -8,7 +8,9 @@ const state = {
   byId: new Map(),     // conceptId -> doc
   current: null,       // relPath of open doc
   editing: false,
-  graph: null
+  graph: null,
+  editorMode: 'visual',
+  editorBody: '',
 };
 
 /* ---------- Tema (claro/escuro) ---------- */
@@ -160,6 +162,7 @@ function closeOverlays(){ $('graph-view').classList.add('hidden'); $('validate-v
 
 /* ---------- Open / render doc ---------- */
 function openDoc(relPath) {
+  if (state.editing && window.OKFEditor) { window.OKFEditor.destroy(); state.editing = false; }
   const doc = state.docs.find(d => d.relPath === relPath);
   if (!doc) return;
   state.current = relPath;
@@ -250,7 +253,7 @@ function rewireLinks(container, srcRel) {
 }
 
 /* ---------- Edit ---------- */
-function enterEdit() {
+async function enterEdit() {
   const doc = state.docs.find(d => d.relPath === state.current);
   if (!doc) return;
   state.editing = true;
@@ -263,14 +266,19 @@ function enterEdit() {
   const p = OKF.parse(doc.content);
   const f = p.frontmatter;
   const reserved = doc.reserved;
-  // For reserved files, hide frontmatter grid and edit the RAW content so any
-  // frontmatter they carry (e.g. okf_version in the root index.md) is preserved.
   $('edit-mode').querySelector('.edit-grid').style.display = reserved ? 'none' : '';
   $('extra-fm').style.display = reserved ? 'none' : '';
+
   if (reserved) {
+    // Reservados: só modo Código (conteúdo bruto completo), barra do editor oculta.
+    $('editor-toolbar').classList.add('hidden');
+    $('milkdown').classList.add('hidden');
+    $('e-body').classList.remove('hidden');
     $('e-body').value = doc.content;
     return;
   }
+
+  $('editor-toolbar').classList.remove('hidden');
   $('e-type').value = f.type || '';
   $('e-title').value = f.title || '';
   $('e-description').value = f.description || '';
@@ -281,12 +289,54 @@ function enterEdit() {
   const extra = {};
   Object.keys(f).forEach(k => { if (!known.includes(k)) extra[k] = f[k]; });
   $('e-extra').value = Object.keys(extra).length ? jsyaml.dump(extra).replace(/\n$/,'') : '';
-  $('e-body').value = p.body || '';
+
+  // Inicia em modo Visual com o corpo do conceito.
+  state.editorBody = p.body || '';
+  state.editorMode = 'visual';
+  $('e-body').classList.add('hidden');
+  $('milkdown').classList.remove('hidden');
+  setModeButtons('visual');
+  await window.OKFEditor.create($('milkdown'), state.editorBody, {
+    onChange: (md) => { state.editorBody = md; }
+  });
 }
 
-function cancelEdit() {
+function setModeButtons(mode) {
+  $('mode-visual').classList.toggle('on', mode === 'visual');
+  $('mode-source').classList.toggle('on', mode === 'source');
+}
+
+async function setEditorMode(mode) {
+  const doc = state.docs.find(d => d.relPath === state.current);
+  if (!doc || doc.reserved || mode === state.editorMode) return;
+  if (mode === 'source') {
+    state.editorBody = window.OKFEditor.getMarkdown();
+    await window.OKFEditor.destroy();
+    $('milkdown').classList.add('hidden');
+    $('e-body').value = state.editorBody;
+    $('e-body').classList.remove('hidden');
+  } else {
+    state.editorBody = $('e-body').value;
+    $('e-body').classList.add('hidden');
+    $('milkdown').classList.remove('hidden');
+    await window.OKFEditor.create($('milkdown'), state.editorBody, {
+      onChange: (md) => { state.editorBody = md; }
+    });
+  }
+  state.editorMode = mode;
+  setModeButtons(mode);
+}
+
+function currentBodyMarkdown(doc) {
+  if (doc.reserved) return $('e-body').value;
+  if (state.editorMode === 'source') return $('e-body').value;
+  return window.OKFEditor.getMarkdown();
+}
+
+async function cancelEdit() {
   state.editing = false;
   const doc = state.docs.find(d => d.relPath === state.current);
+  if (window.OKFEditor) { await window.OKFEditor.destroy(); }
   renderConcept(doc);
 }
 
@@ -295,7 +345,7 @@ async function saveEdit() {
   if (!doc) return;
   let content;
   if (doc.reserved) {
-    content = $('e-body').value;
+    content = currentBodyMarkdown(doc);
   } else {
     const type = $('e-type').value.trim();
     if (!type) { toast('O campo "type" é obrigatório (OKF v0.1).', 'bad'); return; }
@@ -313,7 +363,7 @@ async function saveEdit() {
         if (ex && typeof ex === 'object') Object.assign(fm, ex);
       } catch (e) { toast('YAML inválido nos campos extras: ' + e.message, 'bad'); return; }
     }
-    content = OKF.serialize(fm, $('e-body').value);
+    content = OKF.serialize(fm, currentBodyMarkdown(doc));
   }
   try {
     await window.okf.writeFile({ root: state.root, relPath: doc.relPath, content });
@@ -322,6 +372,7 @@ async function saveEdit() {
     buildTypeFilter();
     renderTree();
     state.editing = false;
+    if (!doc.reserved && state.editorMode === 'visual' && window.OKFEditor) { await window.OKFEditor.destroy(); }
     renderConcept(doc);
     toast('Salvo em ' + doc.relPath, 'good');
   } catch (e) {
@@ -498,6 +549,8 @@ function init() {
   $('btn-edit').onclick = enterEdit;
   $('btn-save').onclick = saveEdit;
   $('btn-cancel').onclick = cancelEdit;
+  $('mode-visual').onclick = () => setEditorMode('visual');
+  $('mode-source').onclick = () => setEditorMode('source');
   $('btn-delete').onclick = deleteCurrent;
   $('graph-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('validate-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
