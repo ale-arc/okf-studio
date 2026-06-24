@@ -102,32 +102,24 @@ O destino já está configurado no `package.json`, em `build.publish`:
 
 ### Publicando uma nova versão
 
-1. **Suba o número da versão** em `package.json` (ex.: `1.0.0` → `1.0.1`).
-2. Crie um **token do GitHub** (escopo `repo`) e exponha-o:
-
-   ```powershell
-   $env:GH_TOKEN = "ghp_seu_token_aqui"
-   ```
+1. **Suba o número da versão** em `package.json` (ex.: `1.1.2` → `1.1.3`).
+2. Garanta que o **GitHub CLI** está autenticado: `gh auth status`.
 3. Gere e publique:
 
    ```bat
    npm run publish
    ```
 
-   Isso compila e envia os artefatos + o manifesto `latest.yml` para um
-   **release** no GitHub (criado como *rascunho*).
-4. **Publique o rascunho** — é isso que torna a atualização visível aos apps:
+   Isso compila o app e cria **uma única release** `vX.Y.Z` no GitHub, marcada
+   como *latest*, com o instalador, a versão portátil, o `latest.yml` e o
+   blockmap — tudo de uma vez. As notas são geradas automaticamente a partir
+   dos PRs. Os apps já instalados detectam a nova versão e se atualizam sozinhos.
 
-   ```bat
-   gh release edit vX.Y.Z --repo ale-arc/okf-studio --draft=false --latest
-   ```
-
-   (ou pela web: *Releases ▸ Edit ▸ Publish release*.) Os apps já instalados
-   detectam a nova versão e se atualizam sozinhos.
-
-> O `electron-updater` só enxerga releases **publicados** (não-rascunho e
-> não-pré-lançamento). Enquanto o release ficar como rascunho, ninguém recebe
-> a atualização.
+> Use `npm run release:dry` para ver o comando que será executado, sem publicar.
+>
+> A publicação é feita pelo `gh` (script `scripts/publish-release.mjs`), e **não**
+> pelo publicador do electron-builder — isso evita a criação de releases
+> duplicadas. O `gh` usa a própria autenticação; não é preciso `GH_TOKEN`.
 
 ---
 
