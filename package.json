@@ -1,0 +1,68 @@
+{
+  "name": "okf-studio",
+  "version": "1.0.0",
+  "description": "Visualizador e editor de bibliotecas no formato Open Knowledge Format (OKF v0.1).",
+  "main": "main.js",
+  "author": "OKF Studio",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test-okf.js",
+    "test:ui": "electron test-renderer.js",
+    "dist": "electron-builder --win --x64",
+    "dist:portable": "electron-builder --win portable --x64",
+    "publish": "electron-builder --win --x64 --publish always"
+  },
+  "dependencies": {
+    "cytoscape": "^3.34.0",
+    "electron-updater": "^6.8.9",
+    "js-yaml": "^4.1.0",
+    "marked": "^18.0.5"
+  },
+  "devDependencies": {
+    "electron": "^42.5.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.okfstudio.app",
+    "productName": "OKF Studio",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "sample-library",
+        "to": "sample-library"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "OKF Studio",
+      "artifactName": "OKF-Studio-Setup-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "OKF-Studio-Portable-${version}-${arch}.${ext}"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ale-arc",
+        "repo": "okf-studio"
+      }
+    ]
+  }
+}

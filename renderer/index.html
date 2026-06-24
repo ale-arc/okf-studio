@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;" />
+  <title>OKF Studio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="toolbar">
+    <div class="brand">OKF&nbsp;Studio <span id="app-version" class="ver"></span></div>
+    <div class="tools">
+      <button id="btn-open" title="Abrir pasta da biblioteca (Ctrl+O)">📂 Abrir</button>
+      <button id="btn-sample" title="Carregar biblioteca de exemplo">✨ Exemplo</button>
+      <button id="btn-reload" title="Recarregar (Ctrl+R)" disabled>↻</button>
+      <span class="divider"></span>
+      <button id="btn-new" title="Novo conceito (Ctrl+N)" disabled>＋ Novo</button>
+      <button id="btn-graph" title="Grafo de relacionamentos" disabled>🕸 Grafo</button>
+      <button id="btn-validate" title="Validar conformidade OKF" disabled>✓ Validar</button>
+      <button id="btn-update" class="update hidden" title="Reiniciar para instalar a atualização baixada">⬆ Atualizar</button>
+      <span class="grow"></span>
+      <input id="search" type="search" placeholder="Buscar por título, id, tag…" disabled />
+      <select id="type-filter" disabled><option value="">Todos os tipos</option></select>
+    </div>
+  </header>
+
+  <main id="layout">
+    <aside id="sidebar">
+      <div id="bundle-name" class="bundle-name">Nenhuma biblioteca aberta</div>
+      <div id="tree" class="tree"></div>
+    </aside>
+
+    <section id="content">
+      <!-- Empty state -->
+      <div id="empty" class="empty">
+        <h1>OKF Studio</h1>
+        <p>Visualizador e editor de bibliotecas no <strong>Open Knowledge Format (OKF v0.1)</strong>.</p>
+        <p>Abra uma pasta com arquivos <code>.md</code> ou comece pela biblioteca de exemplo.</p>
+        <div class="empty-actions">
+          <button id="empty-open">📂 Abrir biblioteca</button>
+          <button id="empty-sample">✨ Carregar exemplo</button>
+        </div>
+      </div>
+
+      <!-- Concept viewer/editor -->
+      <article id="viewer" class="hidden">
+        <div class="viewer-head">
+          <div class="crumbs" id="crumbs"></div>
+          <div class="viewer-actions">
+            <button id="btn-edit">✎ Editar</button>
+            <button id="btn-save" class="primary hidden">💾 Salvar</button>
+            <button id="btn-cancel" class="hidden">Cancelar</button>
+            <button id="btn-delete" class="danger">🗑 Excluir</button>
+          </div>
+        </div>
+
+        <div id="render-mode">
+          <div id="fm-card" class="fm-card"></div>
+          <div id="md-body" class="md-body"></div>
+          <div id="backlinks" class="backlinks"></div>
+        </div>
+
+        <div id="edit-mode" class="hidden">
+          <div class="edit-grid">
+            <label>type <span class="req">*</span>
+              <input id="e-type" type="text" placeholder="Ex.: Projeto, Processo, Métrica" />
+            </label>
+            <label>title
+              <input id="e-title" type="text" />
+            </label>
+            <label class="full">description
+              <input id="e-description" type="text" />
+            </label>
+            <label class="full">resource (URI)
+              <input id="e-resource" type="text" placeholder="https://…" />
+            </label>
+            <label class="full">tags (separadas por vírgula)
+              <input id="e-tags" type="text" placeholder="vendas, receita" />
+            </label>
+            <label>timestamp
+              <input id="e-timestamp" type="text" placeholder="2026-06-24T10:00:00Z" />
+              <button id="e-now" class="mini" type="button">agora</button>
+            </label>
+          </div>
+          <details id="extra-fm">
+            <summary>Campos extras do frontmatter (YAML)</summary>
+            <textarea id="e-extra" spellcheck="false" placeholder="status: Em andamento&#10;responsavel: Equipe X"></textarea>
+          </details>
+          <label class="body-label">Corpo (Markdown)</label>
+          <textarea id="e-body" class="body-editor" spellcheck="false"></textarea>
+        </div>
+      </article>
+
+      <!-- Graph -->
+      <div id="graph-view" class="hidden">
+        <div class="graph-head">
+          <strong>Grafo de relacionamentos</strong>
+          <span id="graph-stats" class="muted"></span>
+          <span class="grow"></span>
+          <button id="graph-close">Fechar</button>
+        </div>
+        <div id="cy"></div>
+        <div class="graph-legend" id="graph-legend"></div>
+      </div>
+
+      <!-- Validation -->
+      <div id="validate-view" class="hidden">
+        <div class="graph-head">
+          <strong>Validação de conformidade — OKF v0.1</strong>
+          <span class="grow"></span>
+          <button id="validate-close">Fechar</button>
+        </div>
+        <div id="validate-body" class="validate-body"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- New concept modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Novo conceito</h2>
+      <label>Caminho dentro da biblioteca (ex.: <code>projetos/novo.md</code>)
+        <input id="m-path" type="text" placeholder="categoria/nome.md" />
+      </label>
+      <label>type <span class="req">*</span>
+        <input id="m-type" type="text" placeholder="Projeto" />
+      </label>
+      <label>title
+        <input id="m-title" type="text" />
+      </label>
+      <label>description
+        <input id="m-description" type="text" />
+      </label>
+      <div class="modal-actions">
+        <button id="m-cancel">Cancelar</button>
+        <button id="m-create" class="primary">Criar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="../node_modules/js-yaml/dist/js-yaml.min.js"></script>
+  <script src="../node_modules/marked/lib/marked.umd.js"></script>
+  <script src="../node_modules/cytoscape/dist/cytoscape.min.js"></script>
+  <script src="okf.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
