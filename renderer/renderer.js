@@ -13,6 +13,17 @@ const state = {
   editorBody: '',
 };
 
+/* ---------- Modelos de conceito (por tipo) ---------- */
+const CONCEPT_TEMPLATES = {
+  'Em branco': { type: '', body: 'Descreva aqui.\n' },
+  'Projeto':   { type: 'Projeto',   body: '## Objetivo\n\n\n## Status\n\n\n## Marcos\n\n' },
+  'Processo':  { type: 'Processo',  body: '## Quando usar\n\n\n## Passos\n\n1. \n\n## Responsáveis\n\n' },
+  'Métrica':   { type: 'Métrica',   body: '## Definição\n\n\n## Como calcular\n\n\n## Fonte\n\n' },
+  'Referência':{ type: 'Referência',body: '## Resumo\n\n\n## Detalhes\n\n' },
+  'Playbook':  { type: 'Playbook',  body: '## Gatilho\n\n\n## Passos\n\n1. \n\n## Pós-ação\n\n' }
+};
+window.__okfTemplates = CONCEPT_TEMPLATES; // exposto para o smoke test
+
 /* ---------- Tema (claro/escuro) ---------- */
 function currentTheme() {
   return document.documentElement.getAttribute('data-theme') || 'dark';
@@ -595,6 +606,9 @@ async function deleteCurrent() {
 function openModal() {
   if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
   ['m-path','m-type','m-title','m-description'].forEach(id => $(id).value = '');
+  const tplSel = $('m-template');
+  if (!tplSel.options.length) tplSel.innerHTML = Object.keys(CONCEPT_TEMPLATES).map(n => `<option>${escapeHtml(n)}</option>`).join('');
+  tplSel.value = 'Em branco';
   $('modal').classList.remove('hidden');
   $('m-path').focus();
 }
@@ -609,7 +623,8 @@ async function createConcept() {
   if ($('m-title').value.trim()) fm.title = $('m-title').value.trim();
   if ($('m-description').value.trim()) fm.description = $('m-description').value.trim();
   fm.timestamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-  const content = OKF.serialize(fm, '# ' + (fm.title || 'Novo conceito') + '\n\nDescreva aqui.\n');
+  const tpl = CONCEPT_TEMPLATES[$('m-template').value] || CONCEPT_TEMPLATES['Em branco'];
+  const content = OKF.serialize(fm, '# ' + (fm.title || 'Novo conceito') + '\n\n' + tpl.body);
   try {
     await window.okf.createFile({ root: state.root, relPath: rel, content });
     state.docs.push({ relPath: rel, name: rel.split('/').pop(), reserved: OKF.isReserved(rel), content, mtime: Date.now() });
@@ -839,6 +854,10 @@ function init() {
   $('manual-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('m-cancel').onclick = closeModal;
   $('m-create').onclick = createConcept;
+  $('m-template').addEventListener('change', () => {
+    const tpl = CONCEPT_TEMPLATES[$('m-template').value];
+    if (tpl && tpl.type && !$('m-type').value.trim()) $('m-type').value = tpl.type;
+  });
   $('tb-concept').onclick = openConceptPicker;
   $('cm-cancel').onclick = closeConceptPicker;
   $('cm-search').addEventListener('input', e => renderConceptList(e.target.value));
