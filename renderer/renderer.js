@@ -563,6 +563,7 @@ async function showGraph() {
     container: host,
     autoResize: true,
     autoFit: 'view',
+    padding: 40,
     theme: currentTheme() === 'light' ? 'light' : 'dark',
     data,
     node: {
@@ -583,13 +584,44 @@ async function showGraph() {
       style: { stroke: col.muted || col.line, lineWidth: 1.4, endArrow: true, opacity: 0.55, curveOffset: 18 },
       state: { active: { stroke: col.text, opacity: 1 } }
     },
-    // Pure-JS Fruchterman-style force layout (CSP-safe, no WASM). Chosen over
-    // 'd3-force' because the latter is animated and its render() promise can
-    // stall in a non-painting context (e.g. the headless smoke test).
-    layout: { type: 'force', linkDistance: 130, nodeStrength: -260, edgeStrength: 0.7, preventOverlap: true, factor: 2 },
+    // d3-force (pure JS, CSP-safe) com animation:false: calcula as posições já
+    // estabilizadas antes do render/fit, evitando aglomeração. collide impede
+    // sobreposição. (O smoke test headless usa 'force' à parte.)
+    layout: {
+      type: 'd3-force', animation: false,
+      link: { distance: 140 },
+      manyBody: { strength: -500 },
+      collide: { radius: 56 },
+      x: { strength: 0.06 },
+      y: { strength: 0.06 }
+    },
     behaviors: ['zoom-canvas', 'drag-canvas', 'drag-element', { type: 'hover-activate', degree: 1 }]
   });
   await g6graph.render();
+  // No resize, ajusta o canvas ao container (resize) e re-enquadra (fitView).
+  // fitView é async no v5 — trate a rejeição p/ não vazar UnhandledPromiseRejection.
+  // (A margem do fit vem do `padding` no nível do Graph; fitView não aceita padding.)
+  const refit = () => {
+    if (!g6graph || $('graph-view').classList.contains('hidden')) return;
+    const host2 = $('cy');
+    try { g6graph.resize(host2.clientWidth, host2.clientHeight); } catch (e) {}
+    try {
+      const r = g6graph.fitView({ when: 'always', direction: 'both' });
+      if (r && typeof r.catch === 'function') r.catch(() => {});
+    } catch (e) {}
+  };
+  window.__okfRefit = refit;
+  refit();
+  // Re-enquadra quando o container muda de tamanho (ResizeObserver dispara já com
+  // o #cy no tamanho novo, evitando a corrida com o autoResize do G6).
+  if (!window.__okfGraphRO) {
+    let rt;
+    window.__okfGraphRO = new ResizeObserver(() => {
+      clearTimeout(rt);
+      rt = setTimeout(() => { if (window.__okfRefit) window.__okfRefit(); }, 120);
+    });
+    window.__okfGraphRO.observe($('cy'));
+  }
 
   g6graph.on('node:click', (e) => {
     const id = e.target && e.target.id != null ? e.target.id : e.itemId;
