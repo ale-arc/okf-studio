@@ -306,6 +306,23 @@ function setModeButtons(mode) {
   $('mode-source').classList.toggle('on', mode === 'source');
 }
 
+function runToolbar(cmd) {
+  if (state.editorMode !== 'visual' || !window.OKFEditor) return;
+  if (cmd === 'taskList') { window.OKFEditor.taskList(); window.OKFEditor.focus(); return; }
+  if (cmd === 'link') {
+    const href = window.prompt('URL do link:');
+    if (href) window.OKFEditor.link(href);
+    window.OKFEditor.focus(); return;
+  }
+  if (cmd === 'image') {
+    const src = window.prompt('URL da imagem:');
+    if (src) window.OKFEditor.image(src);
+    window.OKFEditor.focus(); return;
+  }
+  window.OKFEditor.runCommand(cmd);
+  window.OKFEditor.focus();
+}
+
 async function setEditorMode(mode) {
   const doc = state.docs.find(d => d.relPath === state.current);
   if (!doc || doc.reserved || mode === state.editorMode) return;
@@ -551,6 +568,9 @@ function init() {
   $('btn-cancel').onclick = cancelEdit;
   $('mode-visual').onclick = () => setEditorMode('visual');
   $('mode-source').onclick = () => setEditorMode('source');
+  document.querySelectorAll('#editor-toolbar button[data-cmd]').forEach(btn => {
+    btn.addEventListener('click', () => runToolbar(btn.dataset.cmd));
+  });
   $('btn-delete').onclick = deleteCurrent;
   $('graph-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('validate-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };

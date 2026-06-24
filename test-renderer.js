@@ -62,6 +62,29 @@ app.whenReady().then(async () => {
   const okRound = roundtrip && roundtrip.heading && roundtrip.bold && roundtrip.list && roundtrip.task && roundtrip.table && roundtrip.link;
   console.log('  round-trip Markdown:', JSON.stringify(roundtrip));
 
+  const commands = await win.webContents.executeJavaScript(`(async () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    await window.OKFEditor.create(host, 'parágrafo de teste', {});
+    window.OKFEditor.runCommand('h1');
+    const afterH1 = window.OKFEditor.getMarkdown();
+    await window.OKFEditor.create(host, 'linha', {});
+    window.OKFEditor.taskList();
+    const afterTask = window.OKFEditor.getMarkdown();
+    await window.OKFEditor.create(host, 'x', {});
+    window.OKFEditor.runCommand('table');
+    const afterTable = window.OKFEditor.getMarkdown();
+    await window.OKFEditor.destroy();
+    host.remove();
+    return {
+      h1: /^#\\s/m.test(afterH1),
+      task: /\\[[ xX]\\]/.test(afterTask),
+      table: /\\|/.test(afterTable)
+    };
+  })()`);
+  const okCommands = commands && commands.h1 && commands.task && commands.table;
+  console.log('  toolbar commands:', JSON.stringify(commands));
+
   const okGlobals = ['marked','OKF','cytoscape','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
   const okBridge = result.okfBridge === 'object' && result.updateBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
@@ -78,8 +101,8 @@ app.whenReady().then(async () => {
   console.log('  theme toggle muda data-theme:', result.themeToggle);
   console.log('  window.OKFEditor presente:', result.editorGlobal);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && cspViolations.length === 0
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && cspViolations.length === 0 ? 0 : 1);
 });
