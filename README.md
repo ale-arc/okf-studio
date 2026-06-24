@@ -33,6 +33,12 @@ arquivos `.md` que você (e agentes de IA como o Claude) podem ler e manter.
 - **Busca** (título, id, tags) e **filtro por tipo**.
 - **Atualizações automáticas** da versão instalada (sem reinstalar) — veja a
   seção [Atualizações automáticas](#atualizações-automáticas-sem-reinstalar).
+- **Editor visual (WYSIWYG)** de Markdown (Milkdown): edição renderizada estilo
+  Word, barra de ferramentas (negrito, itálico, títulos, listas, tarefas,
+  citação, tabela, código, linha, link, imagem, desfazer/refazer), menu "/" e
+  botão **Inserir conceito**; com toggle **Código** para o Markdown cru.
+- **Temas claro e escuro** — segue o tema do Windows na 1ª abertura e alterna
+  pelo botão 🌙/☀ (escolha salva).
 
 ---
 
@@ -53,6 +59,9 @@ npm start
 :: 3. gerar o instalador .exe (NSIS) + versão portátil
 npm run dist
 ```
+
+> O `npm start` e o `npm run dist` rodam automaticamente `npm run build:editor`
+> (esbuild) para gerar `renderer/vendor/editor.bundle.js`.
 
 Após `npm run dist`, os arquivos ficam em **`dist/`**:
 
@@ -143,6 +152,8 @@ okf-studio/
 ├── package.json         Configuração do Electron + electron-builder
 ├── main.js              Processo principal: janela, menu, leitura/gravação de arquivos
 ├── preload.js           Ponte segura (contextBridge) entre interface e disco
+├── src/editor/          Fonte do editor Milkdown (compilado por esbuild)
+├── renderer/vendor/     Bundle gerado do editor (não versionado)
 ├── renderer/
 │   ├── index.html       Layout da interface
 │   ├── styles.css       Estilos (tema escuro)
