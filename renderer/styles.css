@@ -3,12 +3,14 @@
   --text:#e6e8ec; --muted:#9aa0aa; --accent:#5b9dff; --accent2:#7c5cff;
   --good:#43c08a; --warn:#e0a64a; --bad:#e06a6a;
   --chip:#33373f;
+  --input-bg:#1b1c20;
 }
 :root[data-theme="light"]{
   --bg:#f6f7f9; --panel:#ffffff; --panel2:#eef0f4; --line:#d8dce3;
   --text:#1c1e22; --muted:#5b6270; --accent:#2f6fe0; --accent2:#6b4dff;
   --good:#1f9d6b; --warn:#b9791f; --bad:#d24b4b;
   --chip:#e7eaf0;
+  --input-bg:#ffffff;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,sans-serif;
@@ -21,7 +23,7 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button.primary:hover{background:#4a8cf0}
 button.danger:hover{border-color:var(--bad);color:var(--bad)}
 button.mini{padding:2px 7px;font-size:11px;margin-left:6px}
-input,select,textarea{font-family:inherit;background:#1b1c20;color:var(--text);
+input,select,textarea{font-family:inherit;background:var(--input-bg);color:var(--text);
   border:1px solid var(--line);border-radius:7px;padding:7px 9px;outline:none}
 input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 code{background:#15161a;padding:1px 5px;border-radius:4px;font-size:.92em}

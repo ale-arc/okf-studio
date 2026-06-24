@@ -292,6 +292,16 @@ async function enterEdit() {
 
   // Inicia em modo Visual com o corpo do conceito.
   state.editorBody = p.body || '';
+  if (!window.OKFEditor) {
+    // Bundle do editor indisponível — degrada para o modo Código (textarea).
+    toast('Editor visual indisponível; usando modo Código.', 'bad');
+    state.editorMode = 'source';
+    $('milkdown').classList.add('hidden');
+    $('e-body').value = state.editorBody;
+    $('e-body').classList.remove('hidden');
+    setModeButtons('source');
+    return;
+  }
   state.editorMode = 'visual';
   $('e-body').classList.add('hidden');
   $('milkdown').classList.remove('hidden');
@@ -359,6 +369,7 @@ function runToolbar(cmd) {
 async function setEditorMode(mode) {
   const doc = state.docs.find(d => d.relPath === state.current);
   if (!doc || doc.reserved || mode === state.editorMode) return;
+  if (mode === 'visual' && !window.OKFEditor) { toast('Editor visual indisponível.', 'bad'); return; }
   if (mode === 'source') {
     state.editorBody = window.OKFEditor.getMarkdown();
     await window.OKFEditor.destroy();
