@@ -39,12 +39,14 @@ app.whenReady().then(async () => {
       window.__okfSetTheme && window.__okfSetTheme(before || 'dark');
       return !!(before !== null && after !== null && before !== after);
     })(),
+    editorGlobal: !!(window.OKFEditor && typeof window.OKFEditor.ping === 'function' && window.OKFEditor.ping() === 'okf-editor-ready'),
   }))()`);
 
   const okGlobals = ['marked','OKF','cytoscape','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
   const okBridge = result.okfBridge === 'object' && result.updateBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
   const okTheme = result.themeToggle === true;
+  const okEditor = result.editorGlobal === true;
 
   console.log('RENDERER SMOKE TEST');
   console.log('  globals:', JSON.stringify({
@@ -54,9 +56,10 @@ app.whenReady().then(async () => {
   console.log('  update bridge present:', result.updateBridge);
   console.log('  markdown render (table+h1):', okRender);
   console.log('  theme toggle muda data-theme:', result.themeToggle);
+  console.log('  window.OKFEditor presente:', result.editorGlobal);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
-  console.log(okGlobals && okBridge && okRender && okTheme && cspViolations.length === 0
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && cspViolations.length === 0 ? 0 : 1);
 });
