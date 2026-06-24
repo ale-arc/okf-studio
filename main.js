@@ -2,12 +2,20 @@
 
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const fsp = fs.promises;
+const { createWatcher } = require('./watcher.js');
 
 let mainWindow = null;
 let manualUpdateCheck = false; // true when the user clicked "Verificar atualizações"
+let currentRoot = null; // raiz da biblioteca aberta (cwd do terminal e do watcher)
+
+// Observa a biblioteca aberta e avisa o renderer quando algo muda no disco.
+const libWatcher = createWatcher(() => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('bundle:changed');
+});
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -28,7 +36,7 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   buildMenu();
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on('closed', () => { libWatcher.close(); mainWindow = null; });
 }
 
 function buildMenu() {
@@ -227,12 +235,16 @@ ipcMain.handle('dialog:openFolder', async () => {
 
 ipcMain.handle('bundle:read', async (_e, root) => {
   const docs = await walk(root);
+  currentRoot = root;
+  libWatcher.watch(root);
   return { root, docs };
 });
 
 ipcMain.handle('bundle:sample', async () => {
   const root = sampleLibraryPath();
   const docs = await walk(root);
+  currentRoot = root;
+  libWatcher.watch(root);
   return { root, docs };
 });
 
@@ -272,6 +284,20 @@ ipcMain.handle('app:confirm', async (_e, { message, detail }) => {
 ipcMain.handle('shell:open', async (_e, url) => {
   if (/^https?:\/\//i.test(url)) await shell.openExternal(url);
   return true;
+});
+
+// Abre o Claude Code num terminal externo (PowerShell) já na pasta da biblioteca.
+ipcMain.handle('claude:open', async () => {
+  if (!currentRoot) return { ok: false, error: 'Abra uma biblioteca primeiro.' };
+  try {
+    // `start` abre uma nova janela de console; /D define a pasta de trabalho.
+    spawn('cmd.exe',
+      ['/c', 'start', '', '/D', currentRoot, 'powershell.exe', '-NoExit', '-Command', 'claude'],
+      { detached: true, stdio: 'ignore' }).unref();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
 });
 
 ipcMain.handle('app:version', async () => app.getVersion());

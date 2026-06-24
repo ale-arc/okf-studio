@@ -42,6 +42,12 @@ code{background:var(--code-bg);padding:1px 5px;border-radius:4px;font-size:.92em
 .empty-logo{display:block;margin:0 auto 14px;border-radius:20px}
 .brand .ver{font-weight:400;font-size:11px;color:var(--muted);letter-spacing:0}
 #btn-theme{font-size:14px;line-height:1;padding:6px 9px}
+button.claude{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:600}
+button.claude:hover:not(:disabled){filter:brightness(1.1)}
+.disk-banner{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:70;
+  display:flex;align-items:center;gap:10px;background:var(--panel);color:var(--text);
+  border:1px solid var(--warn);border-radius:9px;padding:10px 14px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:13px}
 button.update{background:var(--good);border-color:var(--good);color:#06281c;font-weight:600}
 button.update:hover:not(:disabled){background:#36a878;border-color:#36a878}
 button.update:disabled{opacity:1;color:#06281c}

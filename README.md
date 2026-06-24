@@ -39,6 +39,11 @@ arquivos `.md` que você (e agentes de IA como o Claude) podem ler e manter.
   botão **Inserir conceito**; com toggle **Código** para o Markdown cru.
 - **Temas claro e escuro** — segue o tema do Windows na 1ª abertura e alterna
   pelo botão 🌙/☀ (escolha salva).
+- **Claude Code + atualização ao vivo** — o botão **⌨ Claude Code** abre o Claude
+  Code num terminal (PowerShell) já na pasta da biblioteca; o app **recarrega
+  sozinho** conforme os arquivos `.md` mudam no disco (com aviso para não
+  sobrescrever uma edição em andamento). Requer o **Claude Code** instalado e no
+  PATH.
 
 ---
 
@@ -144,6 +149,7 @@ okf-studio/
 ├── package.json         Configuração do Electron + electron-builder
 ├── main.js              Processo principal: janela, menu, leitura/gravação de arquivos
 ├── preload.js           Ponte segura (contextBridge) entre interface e disco
+├── watcher.js           Observador de arquivos (chokidar) — recarga ao vivo
 ├── src/editor/          Fonte do editor Milkdown (compilado por esbuild)
 ├── renderer/vendor/     Bundle gerado do editor (não versionado)
 ├── renderer/

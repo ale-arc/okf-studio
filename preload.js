@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('okf', {
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   onUpdateStatus: (cb) => ipcRenderer.on('update:status', (_e, payload) => cb(payload)),
+  openClaude: () => ipcRenderer.invoke('claude:open'),
+  onBundleChanged: (cb) => ipcRenderer.on('bundle:changed', () => cb()),
   onMenu: (channel, cb) => {
     const valid = [
       'menu:open-folder', 'menu:open-sample', 'menu:new-concept',

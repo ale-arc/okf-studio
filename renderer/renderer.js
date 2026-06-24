@@ -82,13 +82,51 @@ async function reload() {
   toast('Biblioteca recarregada', 'good');
 }
 
+/* ---------- Claude Code (terminal externo) ---------- */
+async function openClaude() {
+  if (!state.root) return;
+  const res = await window.okf.openClaude();
+  if (res && res.ok) toast('Claude Code aberto nesta biblioteca', 'good');
+  else toast('Não foi possível abrir: ' + ((res && res.error) || 'erro'), 'bad');
+}
+
+/* ---------- Recarga ao vivo (watcher) ---------- */
+async function reloadFromDisk() {
+  if (!state.root) return;
+  let res;
+  try { res = await window.okf.readBundle(state.root); } catch (e) { return; }
+  const newDocs = res.docs || [];
+
+  // Edição em andamento: nunca sobrescrever o editor.
+  if (state.editing && state.current) {
+    const old = state.docs.find(d => d.relPath === state.current);
+    const cur = newDocs.find(d => d.relPath === state.current);
+    state.docs = newDocs; indexDocs(); buildTypeFilter(); renderTree();
+    $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
+    if (cur && old && cur.content !== old.content) $('disk-banner').classList.remove('hidden');
+    return;
+  }
+
+  // Sem edição: atualização completa preservando a seleção.
+  state.docs = newDocs; indexDocs(); buildTypeFilter(); renderTree();
+  $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
+  if (state.current && state.docs.some(d => d.relPath === state.current)) {
+    renderConcept(state.docs.find(d => d.relPath === state.current));
+  } else if (state.docs.length) {
+    const first = state.docs.find(d => !d.reserved) || state.docs[0];
+    openDoc(first.relPath);
+  } else {
+    showEmpty();
+  }
+}
+
 function loadBundle(res, name) {
   state.root = res.root;
   state.name = name;
   state.docs = res.docs || [];
   indexDocs();
   $('bundle-name').textContent = name + '  ·  ' + state.docs.length + ' arquivos';
-  ['btn-reload','btn-new','btn-graph','btn-validate','search','type-filter'].forEach(id => $(id).disabled = false);
+  ['btn-reload','btn-new','btn-graph','btn-validate','btn-claude','search','type-filter'].forEach(id => $(id).disabled = false);
   buildTypeFilter();
   renderTree();
   closeOverlays();
@@ -204,6 +242,7 @@ function showManual() {
 /* ---------- Open / render doc ---------- */
 function openDoc(relPath) {
   if (state.editing && window.OKFEditor) { window.OKFEditor.destroy(); state.editing = false; }
+  $('disk-banner').classList.add('hidden');
   const doc = state.docs.find(d => d.relPath === relPath);
   if (!doc) return;
   state.current = relPath;
@@ -716,6 +755,10 @@ function init() {
   $('btn-new').onclick = openModal;
   $('btn-graph').onclick = showGraph;
   $('btn-validate').onclick = showValidation;
+  $('btn-claude').onclick = openClaude;
+  $('disk-reload').onclick = () => { $('disk-banner').classList.add('hidden'); cancelEdit(); reloadFromDisk(); };
+  $('disk-keep').onclick = () => $('disk-banner').classList.add('hidden');
+  window.okf.onBundleChanged(reloadFromDisk);
   $('empty-open').onclick = openFolder;
   $('empty-sample').onclick = openSample;
   $('btn-edit').onclick = enterEdit;

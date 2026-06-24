@@ -3,6 +3,15 @@
 Data: 2026-06-24
 Projeto: OKF Studio (app Electron para bibliotecas Open Knowledge Format)
 
+> **Pivot (2026-06-24):** o terminal *embutido* exigiria o módulo nativo
+> `node-pty`, que não compila nesta máquina (sem Visual Studio Build Tools / C++).
+> Por decisão do usuário, o recurso passou a ser **"abrir o Claude Code num
+> terminal externo + atualização ao vivo"** (sem módulo nativo): um botão lança
+> o Claude Code num terminal do Windows já na pasta da biblioteca, e o app
+> recarrega sozinho conforme os arquivos mudam (observador `chokidar`, JS puro).
+> As decisões de **atualização ao vivo** e **proteção de edição** abaixo
+> permanecem; a parte de PTY/xterm foi substituída pelo lançamento externo.
+
 ## Objetivo
 
 Embutir um **terminal real** no OKF Studio (doca inferior) rodando um shell na
