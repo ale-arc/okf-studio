@@ -4,6 +4,7 @@
   --good:#43c08a; --warn:#e0a64a; --bad:#e06a6a;
   --chip:#33373f;
   --input-bg:#1b1c20;
+  --hover:#31343c; --active:#33405c; --code-bg:#15161a;
 }
 :root[data-theme="light"]{
   --bg:#f6f7f9; --panel:#ffffff; --panel2:#eef0f4; --line:#d8dce3;
@@ -11,13 +12,14 @@
   --good:#1f9d6b; --warn:#b9791f; --bad:#d24b4b;
   --chip:#e7eaf0;
   --input-bg:#ffffff;
+  --hover:#e6eaf1; --active:#dbe6fb; --code-bg:#eceef2;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,sans-serif;
   background:var(--bg);color:var(--text);font-size:14px}
 button{font-family:inherit;font-size:13px;background:var(--panel2);color:var(--text);
   border:1px solid var(--line);border-radius:7px;padding:6px 10px;cursor:pointer}
-button:hover:not(:disabled){border-color:var(--accent);background:#31343c}
+button:hover:not(:disabled){border-color:var(--accent);background:var(--hover)}
 button:disabled{opacity:.4;cursor:default}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button.primary:hover{background:#4a8cf0}
@@ -26,7 +28,7 @@ button.mini{padding:2px 7px;font-size:11px;margin-left:6px}
 input,select,textarea{font-family:inherit;background:var(--input-bg);color:var(--text);
   border:1px solid var(--line);border-radius:7px;padding:7px 9px;outline:none}
 input:focus,textarea:focus,select:focus{border-color:var(--accent)}
-code{background:#15161a;padding:1px 5px;border-radius:4px;font-size:.92em}
+code{background:var(--code-bg);padding:1px 5px;border-radius:4px;font-size:.92em}
 .hidden{display:none !important}
 .grow{flex:1}
 .muted{color:var(--muted)}
@@ -56,7 +58,7 @@ button.update:disabled{opacity:1;color:#06281c}
 .tree .node{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:6px;
   cursor:pointer;margin-left:8px}
 .tree .node:hover{background:var(--panel2)}
-.tree .node.active{background:#33405c}
+.tree .node.active{background:var(--active)}
 .tree .node .ic{font-size:12px;opacity:.8}
 .tree .node .ttl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tree .node .badge{font-size:10px;color:var(--muted);background:var(--chip);
@@ -96,8 +98,8 @@ button.update:disabled{opacity:1;color:#06281c}
 .md-body a{color:var(--accent);text-decoration:none}
 .md-body a:hover{text-decoration:underline}
 .md-body a.broken{color:var(--bad);text-decoration:line-through}
-.md-body pre{background:#15161a;padding:12px;border-radius:8px;overflow:auto}
-.md-body code{background:#15161a}
+.md-body pre{background:var(--code-bg);padding:12px;border-radius:8px;overflow:auto}
+.md-body code{background:var(--code-bg)}
 .md-body blockquote{border-left:3px solid var(--accent);margin:10px 0;padding:2px 14px;color:var(--muted)}
 
 .backlinks{margin-top:30px;border-top:1px solid var(--line);padding-top:14px}
