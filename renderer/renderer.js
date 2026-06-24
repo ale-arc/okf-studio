@@ -13,6 +13,17 @@ const state = {
   editorBody: '',
 };
 
+/* ---------- Modelos de conceito (por tipo) ---------- */
+const CONCEPT_TEMPLATES = {
+  'Em branco': { type: '', body: 'Descreva aqui.\n' },
+  'Projeto':   { type: 'Projeto',   body: '## Objetivo\n\n\n## Status\n\n\n## Marcos\n\n' },
+  'Processo':  { type: 'Processo',  body: '## Quando usar\n\n\n## Passos\n\n1. \n\n## Responsáveis\n\n' },
+  'Métrica':   { type: 'Métrica',   body: '## Definição\n\n\n## Como calcular\n\n\n## Fonte\n\n' },
+  'Referência':{ type: 'Referência',body: '## Resumo\n\n\n## Detalhes\n\n' },
+  'Playbook':  { type: 'Playbook',  body: '## Gatilho\n\n\n## Passos\n\n1. \n\n## Pós-ação\n\n' }
+};
+window.__okfTemplates = CONCEPT_TEMPLATES; // exposto para o smoke test
+
 /* ---------- Tema (claro/escuro) ---------- */
 function currentTheme() {
   return document.documentElement.getAttribute('data-theme') || 'dark';
@@ -82,13 +93,51 @@ async function reload() {
   toast('Biblioteca recarregada', 'good');
 }
 
+/* ---------- Claude Code (terminal externo) ---------- */
+async function openClaude() {
+  if (!state.root) return;
+  const res = await window.okf.openClaude();
+  if (res && res.ok) toast('Claude Code aberto nesta biblioteca', 'good');
+  else toast('Não foi possível abrir: ' + ((res && res.error) || 'erro'), 'bad');
+}
+
+/* ---------- Recarga ao vivo (watcher) ---------- */
+async function reloadFromDisk() {
+  if (!state.root) return;
+  let res;
+  try { res = await window.okf.readBundle(state.root); } catch (e) { return; }
+  const newDocs = res.docs || [];
+
+  // Edição em andamento: nunca sobrescrever o editor.
+  if (state.editing && state.current) {
+    const old = state.docs.find(d => d.relPath === state.current);
+    const cur = newDocs.find(d => d.relPath === state.current);
+    state.docs = newDocs; indexDocs(); buildTypeFilter(); renderTree();
+    $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
+    if (cur && old && cur.content !== old.content) $('disk-banner').classList.remove('hidden');
+    return;
+  }
+
+  // Sem edição: atualização completa preservando a seleção.
+  state.docs = newDocs; indexDocs(); buildTypeFilter(); renderTree();
+  $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
+  if (state.current && state.docs.some(d => d.relPath === state.current)) {
+    renderConcept(state.docs.find(d => d.relPath === state.current));
+  } else if (state.docs.length) {
+    const first = state.docs.find(d => !d.reserved) || state.docs[0];
+    openDoc(first.relPath);
+  } else {
+    showEmpty();
+  }
+}
+
 function loadBundle(res, name) {
   state.root = res.root;
   state.name = name;
   state.docs = res.docs || [];
   indexDocs();
   $('bundle-name').textContent = name + '  ·  ' + state.docs.length + ' arquivos';
-  ['btn-reload','btn-new','btn-graph','btn-validate','search','type-filter'].forEach(id => $(id).disabled = false);
+  ['btn-reload','btn-new','btn-graph','btn-validate','btn-claude','btn-git','search','type-filter'].forEach(id => $(id).disabled = false);
   buildTypeFilter();
   renderTree();
   closeOverlays();
@@ -123,7 +172,8 @@ function renderTree() {
     const tags = Array.isArray(p.frontmatter.tags) ? p.frontmatter.tags.join(' ') : '';
     // filters
     if (typeF && type !== typeF) continue;
-    if (q && !(title.toLowerCase().includes(q) || id.toLowerCase().includes(q) || tags.toLowerCase().includes(q))) continue;
+    const body = (p.body || '').toLowerCase();
+    if (q && !(title.toLowerCase().includes(q) || id.toLowerCase().includes(q) || tags.toLowerCase().includes(q) || body.includes(q))) continue;
 
     const dir = d.relPath.includes('/') ? d.relPath.replace(/\/[^/]*$/,'') : '(raiz)';
     if (!groups.has(dir)) groups.set(dir, []);
@@ -170,7 +220,60 @@ function buildTypeFilter() {
 /* ---------- View states ---------- */
 function showEmpty(){ $('empty').classList.remove('hidden'); $('viewer').classList.add('hidden'); }
 function showViewer(){ $('empty').classList.add('hidden'); $('viewer').classList.remove('hidden'); }
-function closeOverlays(){ $('graph-view').classList.add('hidden'); $('validate-view').classList.add('hidden'); $('manual-view').classList.add('hidden'); }
+function closeOverlays(){ $('graph-view').classList.add('hidden'); $('validate-view').classList.add('hidden'); $('manual-view').classList.add('hidden'); $('git-view').classList.add('hidden'); }
+
+/* ---------- Painel Git ---------- */
+function showGit() {
+  if (!state.root) return;
+  closeOverlays();
+  $('git-view').classList.remove('hidden');
+  refreshGit();
+}
+async function refreshGit() {
+  let s;
+  try { s = await window.okf.git.status(); } catch (e) { s = { ok: false, error: String(e) }; }
+  renderGit(s);
+}
+function renderGit(s) {
+  const branch = $('git-branch'), list = $('git-list'), commit = $('git-commit'), norepo = $('git-norepo');
+  if (!s || !s.ok) {
+    norepo.classList.add('hidden'); commit.classList.add('hidden'); branch.textContent = '';
+    list.innerHTML = `<div class="git-empty">Erro: ${escapeHtml((s && s.error) || '')}</div>`;
+    return;
+  }
+  if (!s.repo) {
+    norepo.classList.remove('hidden'); commit.classList.add('hidden');
+    list.innerHTML = ''; branch.textContent = '';
+    return;
+  }
+  norepo.classList.add('hidden'); commit.classList.remove('hidden');
+  branch.textContent = s.branch ? ('branch: ' + s.branch) : '';
+  $('git-do-push').disabled = !s.hasRemote;
+  $('git-do-push').title = s.hasRemote ? 'Enviar (push)' : 'Sem remoto — adicione pelo terminal (git remote add origin …)';
+  if (!s.files.length) { list.innerHTML = '<div class="git-empty">Nada para commitar — tudo limpo.</div>'; return; }
+  list.innerHTML = s.files.map((f) => {
+    const cls = /D/.test(f.code) ? 'del' : (/[AR?]/.test(f.code) ? 'add' : 'mod');
+    return `<div class="git-item"><span class="git-code ${cls}">${escapeHtml(f.code || '?')}</span>` +
+           `<span class="git-path">${escapeHtml(f.path)}</span></div>`;
+  }).join('');
+}
+async function gitCommit() {
+  const msg = $('git-msg').value.trim();
+  if (!msg) { toast('Informe a mensagem do commit.', 'bad'); return; }
+  const r = await window.okf.git.commit(msg);
+  if (r && r.ok) { toast('Commit feito.', 'good'); $('git-msg').value = ''; refreshGit(); }
+  else toast('Erro no commit: ' + ((r && r.error) || ''), 'bad');
+}
+async function gitPush() {
+  const r = await window.okf.git.push();
+  if (r && r.ok) toast('Push concluído.', 'good');
+  else toast('Erro no push: ' + ((r && r.error) || '') + ' — faça login pelo terminal se necessário.', 'bad');
+}
+async function gitInit() {
+  const r = await window.okf.git.init();
+  if (r && r.ok) { toast('Repositório inicializado.', 'good'); refreshGit(); }
+  else toast('Erro: ' + ((r && r.error) || ''), 'bad');
+}
 
 /* ---------- Manual ---------- */
 let manualRendered = false;
@@ -204,6 +307,7 @@ function showManual() {
 /* ---------- Open / render doc ---------- */
 function openDoc(relPath) {
   if (state.editing && window.OKFEditor) { window.OKFEditor.destroy(); state.editing = false; }
+  $('disk-banner').classList.add('hidden');
   const doc = state.docs.find(d => d.relPath === relPath);
   if (!doc) return;
   state.current = relPath;
@@ -499,9 +603,70 @@ async function deleteCurrent() {
 }
 
 /* ---------- New concept modal ---------- */
+/* ---------- Paleta de comandos (Ctrl+P) ---------- */
+let paletteItems = [], paletteSel = 0;
+function paletteActions() {
+  const lib = !!state.root;
+  return [
+    { label: 'Novo conceito', run: openModal, needsLib: true },
+    { label: 'Grafo de relacionamentos', run: showGraph, needsLib: true },
+    { label: 'Validar conformidade', run: showValidation, needsLib: true },
+    { label: 'Painel Git', run: showGit, needsLib: true },
+    { label: 'Claude Code (terminal)', run: openClaude, needsLib: true },
+    { label: 'Recarregar biblioteca', run: reload, needsLib: true },
+    { label: 'Manual do OKF Studio', run: showManual, needsLib: false },
+    { label: 'Alternar tema claro/escuro', run: toggleTheme, needsLib: false },
+    { label: 'Abrir biblioteca…', run: openFolder, needsLib: false },
+    { label: 'Carregar biblioteca de exemplo', run: openSample, needsLib: false }
+  ].filter(a => !a.needsLib || lib).map(a => ({ kind: 'ação', label: a.label, sub: '', run: a.run }));
+}
+function paletteConcepts() {
+  if (!state.root) return [];
+  return state.docs.filter(d => !d.reserved).map(d => {
+    const f = parsedOf(d).frontmatter;
+    return { kind: 'conceito', label: f.title || d.name.replace(/\.md$/i, ''), sub: d.relPath, run: () => openDoc(d.relPath) };
+  });
+}
+function openPalette() {
+  $('palette-input').value = '';
+  renderPalette('');
+  $('palette').classList.remove('hidden');
+  $('palette-input').focus();
+}
+function closePalette() { $('palette').classList.add('hidden'); }
+function renderPalette(q) {
+  const ql = (q || '').toLowerCase().trim();
+  const all = paletteActions().concat(paletteConcepts());
+  paletteItems = all.filter(it => !ql || it.label.toLowerCase().includes(ql) || (it.sub && it.sub.toLowerCase().includes(ql)));
+  paletteSel = 0;
+  const list = $('palette-list');
+  if (!paletteItems.length) { list.innerHTML = '<div class="pal-empty">Nada encontrado.</div>'; return; }
+  list.innerHTML = paletteItems.map((it, i) =>
+    `<div class="pal-item${i === 0 ? ' sel' : ''}" data-i="${i}">` +
+    `<span class="pal-kind">${it.kind}</span><span class="pal-label">${escapeHtml(it.label)}</span>` +
+    (it.sub ? `<span class="pal-sub">${escapeHtml(it.sub)}</span>` : '') + `</div>`).join('');
+  list.querySelectorAll('.pal-item').forEach(el => el.addEventListener('click', () => activatePalette(+el.dataset.i)));
+}
+function movePalette(delta) {
+  if (!paletteItems.length) return;
+  paletteSel = (paletteSel + delta + paletteItems.length) % paletteItems.length;
+  const els = $('palette-list').querySelectorAll('.pal-item');
+  els.forEach((el, i) => el.classList.toggle('sel', i === paletteSel));
+  if (els[paletteSel]) els[paletteSel].scrollIntoView({ block: 'nearest' });
+}
+function activatePalette(i) {
+  const it = paletteItems[typeof i === 'number' ? i : paletteSel];
+  if (!it) return;
+  closePalette();
+  it.run();
+}
+
 function openModal() {
   if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
   ['m-path','m-type','m-title','m-description'].forEach(id => $(id).value = '');
+  const tplSel = $('m-template');
+  if (!tplSel.options.length) tplSel.innerHTML = Object.keys(CONCEPT_TEMPLATES).map(n => `<option>${escapeHtml(n)}</option>`).join('');
+  tplSel.value = 'Em branco';
   $('modal').classList.remove('hidden');
   $('m-path').focus();
 }
@@ -516,7 +681,8 @@ async function createConcept() {
   if ($('m-title').value.trim()) fm.title = $('m-title').value.trim();
   if ($('m-description').value.trim()) fm.description = $('m-description').value.trim();
   fm.timestamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-  const content = OKF.serialize(fm, '# ' + (fm.title || 'Novo conceito') + '\n\nDescreva aqui.\n');
+  const tpl = CONCEPT_TEMPLATES[$('m-template').value] || CONCEPT_TEMPLATES['Em branco'];
+  const content = OKF.serialize(fm, '# ' + (fm.title || 'Novo conceito') + '\n\n' + tpl.body);
   try {
     await window.okf.createFile({ root: state.root, relPath: rel, content });
     state.docs.push({ relPath: rel, name: rel.split('/').pop(), reserved: OKF.isReserved(rel), content, mtime: Date.now() });
@@ -716,6 +882,16 @@ function init() {
   $('btn-new').onclick = openModal;
   $('btn-graph').onclick = showGraph;
   $('btn-validate').onclick = showValidation;
+  $('btn-claude').onclick = openClaude;
+  $('btn-git').onclick = showGit;
+  $('git-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
+  $('git-refresh').onclick = refreshGit;
+  $('git-init').onclick = gitInit;
+  $('git-do-commit').onclick = gitCommit;
+  $('git-do-push').onclick = gitPush;
+  $('disk-reload').onclick = () => { $('disk-banner').classList.add('hidden'); cancelEdit(); reloadFromDisk(); };
+  $('disk-keep').onclick = () => $('disk-banner').classList.add('hidden');
+  window.okf.onBundleChanged(() => { reloadFromDisk(); if (!$('git-view').classList.contains('hidden')) refreshGit(); });
   $('empty-open').onclick = openFolder;
   $('empty-sample').onclick = openSample;
   $('btn-edit').onclick = enterEdit;
@@ -736,6 +912,18 @@ function init() {
   $('manual-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('m-cancel').onclick = closeModal;
   $('m-create').onclick = createConcept;
+  $('m-template').addEventListener('change', () => {
+    const tpl = CONCEPT_TEMPLATES[$('m-template').value];
+    if (tpl && tpl.type && !$('m-type').value.trim()) $('m-type').value = tpl.type;
+  });
+  $('palette-input').addEventListener('input', (e) => renderPalette(e.target.value));
+  $('palette-input').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); movePalette(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); movePalette(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); activatePalette(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
+  });
+  $('palette').addEventListener('click', (e) => { if (e.target === $('palette')) closePalette(); });
   $('tb-concept').onclick = openConceptPicker;
   $('cm-cancel').onclick = closeConceptPicker;
   $('cm-search').addEventListener('input', e => renderConceptList(e.target.value));
@@ -759,7 +947,8 @@ function init() {
   wireUpdates();
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); openPalette(); return; }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();

@@ -1,6 +1,6 @@
 {
   "name": "okf-studio",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Visualizador e editor de bibliotecas no formato Open Knowledge Format (OKF v0.1).",
   "main": "main.js",
   "author": "OKF Studio",
@@ -11,6 +11,8 @@
     "start": "electron .",
     "test": "node test-okf.js",
     "test:ui": "electron test-renderer.js",
+    "test:watch": "node test-watcher.js",
+    "test:git": "node test-git.js",
     "make:icon": "electron tools/make-icon.js",
     "dist": "npm run build:editor && electron-builder --win --x64",
     "dist:portable": "npm run build:editor && electron-builder --win portable --x64",
@@ -29,6 +31,7 @@
     "@milkdown/preset-gfm": "^7.21.2",
     "@milkdown/prose": "^7.21.2",
     "@milkdown/utils": "^7.21.2",
+    "chokidar": "^4.0.3",
     "electron-updater": "^6.8.9",
     "js-yaml": "^4.1.0",
     "marked": "^18.0.5"

@@ -31,6 +31,12 @@ app.whenReady().then(async () => {
     updateBridge: !!(window.okf && typeof window.okf.getVersion==='function' &&
       typeof window.okf.checkForUpdates==='function' && typeof window.okf.installUpdate==='function' &&
       typeof window.okf.onUpdateStatus==='function'),
+    claudeBridge: !!(window.okf && typeof window.okf.openClaude==='function' &&
+      typeof window.okf.onBundleChanged==='function'),
+    gitBridge: !!(window.okf && window.okf.git && typeof window.okf.git.status==='function' &&
+      typeof window.okf.git.commit==='function'),
+    paletteUI: !!(document.getElementById('palette') && document.getElementById('palette-input')),
+    templates: !!(window.__okfTemplates && Object.keys(window.__okfTemplates).length >= 6),
     renderHtml: (window.marked ? window.marked.parse('# H\\n\\n| a | b |\\n|---|---|\\n| 1 | 2 |') : ''),
     themeToggle: (() => {
       const before = document.documentElement.getAttribute('data-theme');
@@ -107,10 +113,11 @@ app.whenReady().then(async () => {
   console.log('  G6 graph:', JSON.stringify(g6));
 
   const okGlobals = ['marked','OKF','G6','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
-  const okBridge = result.okfBridge === 'object' && result.updateBridge === true;
+  const okBridge = result.okfBridge === 'object' && result.updateBridge === true && result.claudeBridge === true && result.gitBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
   const okTheme = result.themeToggle === true;
   const okEditor = result.editorGlobal === true;
+  const okExtra = result.paletteUI === true && result.templates === true;
 
   console.log('RENDERER SMOKE TEST');
   console.log('  globals:', JSON.stringify({
@@ -121,9 +128,10 @@ app.whenReady().then(async () => {
   console.log('  markdown render (table+h1):', okRender);
   console.log('  theme toggle muda data-theme:', result.themeToggle);
   console.log('  window.OKFEditor presente:', result.editorGlobal);
+  console.log('  paleta + modelos:', result.paletteUI, result.templates);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && cspViolations.length === 0
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && cspViolations.length === 0 ? 0 : 1);
 });

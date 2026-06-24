@@ -19,6 +19,8 @@
       <button id="btn-new" title="Novo conceito (Ctrl+N)" disabled>＋ Novo</button>
       <button id="btn-graph" title="Grafo de relacionamentos" disabled>🕸 Grafo</button>
       <button id="btn-validate" title="Validar conformidade OKF" disabled>✓ Validar</button>
+      <button id="btn-claude" class="claude" title="Abrir o Claude Code num terminal nesta biblioteca" disabled>⌨ Claude Code</button>
+      <button id="btn-git" title="Git: ver mudanças, commit e push" disabled>⎇ Git</button>
       <button id="btn-update" class="update hidden" title="Reiniciar para instalar a atualização baixada">⬆ Atualizar</button>
       <span class="grow"></span>
       <input id="search" type="search" placeholder="Buscar por título, id, tag…" disabled />
@@ -159,6 +161,29 @@
           <div id="manual-body" class="manual-body md-body"></div>
         </div>
       </div>
+
+      <!-- Git -->
+      <div id="git-view" class="hidden">
+        <div class="graph-head">
+          <strong>Git</strong>
+          <span id="git-branch" class="muted"></span>
+          <span class="grow"></span>
+          <button id="git-refresh">Atualizar</button>
+          <button id="git-close">Fechar</button>
+        </div>
+        <div class="git-body">
+          <div id="git-norepo" class="git-norepo hidden">
+            <p>Esta pasta não é um repositório git.</p>
+            <button id="git-init" class="primary">Inicializar (git init)</button>
+          </div>
+          <div id="git-list" class="git-list"></div>
+          <div id="git-commit" class="git-commit">
+            <input id="git-msg" type="text" placeholder="Mensagem do commit…" />
+            <button id="git-do-commit" class="primary">Commit</button>
+            <button id="git-do-push">Push</button>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -166,6 +191,9 @@
   <div id="modal" class="modal hidden">
     <div class="modal-card">
       <h2>Novo conceito</h2>
+      <label>Modelo
+        <select id="m-template"></select>
+      </label>
       <label>Caminho dentro da biblioteca (ex.: <code>projetos/novo.md</code>)
         <input id="m-path" type="text" placeholder="categoria/nome.md" />
       </label>
@@ -194,6 +222,19 @@
         <button id="cm-cancel">Cancelar</button>
       </div>
     </div>
+  </div>
+
+  <div id="palette" class="modal hidden">
+    <div class="modal-card palette-card">
+      <input id="palette-input" type="text" placeholder="Ir para conceito ou ação…" autocomplete="off" />
+      <div id="palette-list" class="palette-list"></div>
+    </div>
+  </div>
+
+  <div id="disk-banner" class="disk-banner hidden">
+    <span>Este conceito mudou no disco.</span>
+    <button id="disk-reload" class="primary">Recarregar</button>
+    <button id="disk-keep">Manter minha edição</button>
   </div>
 
   <div id="toast" class="toast hidden"></div>
