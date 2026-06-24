@@ -138,6 +138,14 @@ button.update:disabled{opacity:1;color:#06281c}
 .milkdown-host .ProseMirror blockquote{border-left:3px solid var(--accent);margin:8px 0;padding:2px 12px;color:var(--muted)}
 .milkdown-host .ProseMirror code{background:var(--panel2);padding:1px 5px;border-radius:4px}
 
+/* slash menu */
+.okf-slash-menu{position:absolute;z-index:200;background:var(--panel);border:1px solid var(--line);
+  border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:180px;overflow:hidden}
+.okf-slash-menu[data-show="false"]{display:none}
+.okf-slash-menu:not([data-show]){display:none}
+.okf-slash-item{padding:7px 12px;cursor:pointer;font-size:13px;color:var(--text)}
+.okf-slash-item:hover{background:var(--accent);color:#fff}
+
 /* graph */
 #graph-view,#validate-view{position:absolute;inset:0;background:var(--bg);
   display:flex;flex-direction:column}

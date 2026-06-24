@@ -11,7 +11,23 @@ import { gfm, toggleStrikethroughCommand, insertTableCommand } from '@milkdown/p
 import { history, undoCommand, redoCommand } from '@milkdown/plugin-history';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { clipboard } from '@milkdown/plugin-clipboard';
+import { slashFactory, SlashProvider } from '@milkdown/plugin-slash';
 import { callCommand, getMarkdown as getMd, replaceAll, insert } from '@milkdown/utils';
+
+const slash = slashFactory('okf-slash');
+let slashProvider = null;
+
+const SLASH_ITEMS = [
+  { label: 'Título 1', run: () => runCommand('h1') },
+  { label: 'Título 2', run: () => runCommand('h2') },
+  { label: 'Lista', run: () => runCommand('bulletList') },
+  { label: 'Lista numerada', run: () => runCommand('orderedList') },
+  { label: 'Tarefas', run: () => taskList() },
+  { label: 'Citação', run: () => runCommand('blockquote') },
+  { label: 'Tabela', run: () => runCommand('table') },
+  { label: 'Bloco de código', run: () => runCommand('codeBlock') },
+  { label: 'Linha horizontal', run: () => runCommand('hr') }
+];
 
 let editor = null;
 
@@ -22,12 +38,39 @@ export async function create(container, markdown, opts = {}) {
       ctx.set(rootCtx, container);
       ctx.set(defaultValueCtx, markdown || '');
       ctx.get(listenerCtx).markdownUpdated((_ctx, md) => { if (opts.onChange) opts.onChange(md); });
+      ctx.set(slash.key, {
+        view: (view) => {
+          const content = document.createElement('div');
+          content.className = 'okf-slash-menu';
+          SLASH_ITEMS.forEach((it) => {
+            const el = document.createElement('div');
+            el.className = 'okf-slash-item';
+            el.textContent = it.label;
+            el.addEventListener('mousedown', (e) => {
+              e.preventDefault();
+              const { state, dispatch } = view;
+              const { from } = state.selection;
+              dispatch(state.tr.delete(from - 1, from));
+              it.run();
+              if (slashProvider) slashProvider.hide();
+              focus();
+            });
+            content.appendChild(el);
+          });
+          slashProvider = new SlashProvider({ content });
+          return {
+            update: (updatedView, prevState) => { slashProvider.update(updatedView, prevState); },
+            destroy: () => { slashProvider.destroy(); slashProvider = null; }
+          };
+        }
+      });
     })
     .use(commonmark)
     .use(gfm)
     .use(history)
     .use(listener)
     .use(clipboard)
+    .use(slash)
     .create();
   return editor;
 }
