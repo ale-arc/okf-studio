@@ -44,6 +44,9 @@ arquivos `.md` que você (e agentes de IA como o Claude) podem ler e manter.
   sozinho** conforme os arquivos `.md` mudam no disco (com aviso para não
   sobrescrever uma edição em andamento). Requer o **Claude Code** instalado e no
   PATH.
+- **Painel Git** (botão ⎇ Git): vê os arquivos alterados, faz **commit** e
+  **push** da biblioteca sem sair do app; oferece **git init** se a pasta ainda
+  não for um repositório. O status atualiza ao vivo conforme os arquivos mudam.
 
 ---
 
@@ -150,6 +153,7 @@ okf-studio/
 ├── main.js              Processo principal: janela, menu, leitura/gravação de arquivos
 ├── preload.js           Ponte segura (contextBridge) entre interface e disco
 ├── watcher.js           Observador de arquivos (chokidar) — recarga ao vivo
+├── git.js               Operações git (status/commit/push/init) — processo principal
 ├── src/editor/          Fonte do editor Milkdown (compilado por esbuild)
 ├── renderer/vendor/     Bundle gerado do editor (não versionado)
 ├── renderer/

@@ -33,6 +33,8 @@ app.whenReady().then(async () => {
       typeof window.okf.onUpdateStatus==='function'),
     claudeBridge: !!(window.okf && typeof window.okf.openClaude==='function' &&
       typeof window.okf.onBundleChanged==='function'),
+    gitBridge: !!(window.okf && window.okf.git && typeof window.okf.git.status==='function' &&
+      typeof window.okf.git.commit==='function'),
     renderHtml: (window.marked ? window.marked.parse('# H\\n\\n| a | b |\\n|---|---|\\n| 1 | 2 |') : ''),
     themeToggle: (() => {
       const before = document.documentElement.getAttribute('data-theme');
@@ -109,7 +111,7 @@ app.whenReady().then(async () => {
   console.log('  G6 graph:', JSON.stringify(g6));
 
   const okGlobals = ['marked','OKF','G6','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
-  const okBridge = result.okfBridge === 'object' && result.updateBridge === true && result.claudeBridge === true;
+  const okBridge = result.okfBridge === 'object' && result.updateBridge === true && result.claudeBridge === true && result.gitBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
   const okTheme = result.themeToggle === true;
   const okEditor = result.editorGlobal === true;
