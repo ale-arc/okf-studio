@@ -242,12 +242,21 @@ function reconstructMarkdown(items) {
 function normHF(s) { return String(s).toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim(); }
 
 const ROMAN = /^m{0,3}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$/;
+function isRomanToken(t) { return t.length > 0 && t.length <= 7 && ROMAN.test(t); }
 function isPageNumKey(k) {
   if (!k) return false;
   if (k === '#') return true;                 // só dígitos
   if (/^p[áa]gina #$/.test(k)) return true;   // "página 3"
-  if (ROMAN.test(k)) return true;             // numeração romana (i, ii, iv, ...)
+  if (isRomanToken(k)) return true;           // numeração romana (i, ii, iv, ...)
   return false;
+}
+
+// Chave para casar cabeçalho/rodapé entre páginas, ignorando o número da página
+// (que varia): remove tokens só-dígito (já viram "#") e algarismos romanos
+// soltos, em qualquer posição. Ex.: "ii © abnt # … reservados" e
+// "© abnt # … reservados v" colapsam na mesma chave.
+function hfKey(s) {
+  return normHF(s).split(' ').filter(t => t && t !== '#' && !isRomanToken(t)).join(' ');
 }
 
 // pages: [{ items, height }]. Remove linhas repetidas nas faixas de topo/rodapé
@@ -264,7 +273,7 @@ function stripRunningHeadersFooters(pages) {
   for (const lines of bandLines) {
     const seen = new Set();
     for (const l of lines) {
-      const key = normHF(lineText(l));
+      const key = hfKey(lineText(l));
       if (!key || seen.has(key)) continue;
       seen.add(key);
       freq.set(key, (freq.get(key) || 0) + 1);
@@ -279,8 +288,8 @@ function stripRunningHeadersFooters(pages) {
     const remove = new Set();
     for (const l of groupLines(pg.items)) {
       if (!(l.y <= top || l.y >= bot)) continue;
-      const key = normHF(lineText(l));
-      if (repeated.has(key) || isPageNumKey(key)) for (const it of l.items) remove.add(it);
+      const key = hfKey(lineText(l));
+      if (repeated.has(key) || isPageNumKey(normHF(lineText(l)))) for (const it of l.items) remove.add(it);
     }
     return { items: pg.items.filter(it => !remove.has(it)), height: pg.height };
   });

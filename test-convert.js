@@ -179,6 +179,21 @@ const RC5 = require('./src/convert/reconstruct.js');
   ok(s3.map(p => p.items.map(i => i.str).join(' ')).join(' ').includes('Aviso único'), 'head/foot: mantém banda não repetida');
 }
 
+// ---- R7: rodapé com número de página embutido (alternando esquerda/direita) ----
+{
+  function pageHF(items, height) { return { items, height }; }
+  // rodapé "© ABNT 2011 - reservados" + algarismo romano que varia e alterna de lado
+  const fp = [
+    pageHF([ it('ii © ABNT 2011 - reservados', 50, 95, 10), it('corpo 1', 50, 50, 12) ], 100),
+    pageHF([ it('© ABNT 2011 - reservados iii', 50, 95, 10), it('corpo 2', 50, 50, 12) ], 100),
+    pageHF([ it('iv © ABNT 2011 - reservados', 50, 95, 10), it('corpo 3', 50, 50, 12) ], 100)
+  ];
+  const sf = RC5.stripRunningHeadersFooters(fp);
+  const tf = sf.map(p => p.items.map(i => i.str).join(' ')).join(' | ');
+  ok(!tf.includes('reservados'), 'head/foot: remove rodapé repetido apesar do nº de página variável');
+  ok(tf.includes('corpo 1') && tf.includes('corpo 3'), 'head/foot: mantém o miolo (variável)');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');
