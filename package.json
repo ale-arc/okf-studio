@@ -14,8 +14,9 @@
     "test:watch": "node test-watcher.js",
     "test:git": "node test-git.js",
     "make:icon": "electron tools/make-icon.js",
-    "dist": "npm run build:editor && electron-builder --win --x64",
-    "dist:portable": "npm run build:editor && electron-builder --win portable --x64",
+    "check:files": "node scripts/check-package-files.mjs",
+    "dist": "npm run check:files && npm run build:editor && electron-builder --win --x64",
+    "dist:portable": "npm run check:files && npm run build:editor && electron-builder --win portable --x64",
     "release:dry": "node scripts/publish-release.mjs --dry-run",
     "publish": "npm run dist && node scripts/publish-release.mjs"
   },
