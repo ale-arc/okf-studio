@@ -222,6 +222,9 @@ function splitColumns(items) {
   if (left.length < items.length * 0.2 || right.length < items.length * 0.2) return [items];
   const yext = arr => { const a = arr.map(i => i.y); return Math.max.apply(null, a) - Math.min.apply(null, a); };
   if (yext(left) < vext * 0.6 || yext(right) < vext * 0.6) return [items];
+  // Layout multi-coluna de texto tem MUITAS linhas por coluna; uma tabela tem
+  // poucas linhas. Sem este piso, splitColumns picotaria tabelas de 2 colunas.
+  if (groupLines(left).length < 6 || groupLines(right).length < 6) return [items];
   return [...splitColumns(left), ...splitColumns(right)];
 }
 

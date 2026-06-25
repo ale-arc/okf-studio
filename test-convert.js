@@ -144,6 +144,15 @@ const RC4 = require('./src/convert/reconstruct.js');
   const single = [];
   for (let k = 0; k < 8; k++) single.push(it('linha ' + k, 50, 30 + k * 20, 12));
   ok(RC4.splitColumns(single).length === 1, 'colunas: 1 coluna permanece única');
+
+  // regressão: tabela de 2 colunas e poucas linhas NÃO pode ser dividida em colunas
+  const tbl3x2 = [
+    it('Nome', 50, 50, 12), it('Idade', 200, 50, 12),
+    it('Ana', 50, 70, 12),  it('30', 200, 70, 12),
+    it('Beto', 50, 90, 12), it('41', 200, 90, 12)
+  ];
+  ok(RC4.splitColumns(tbl3x2).length === 1, 'colunas: tabela 3x2 não é dividida em colunas');
+  has(RC4.reconstructMarkdown(tbl3x2), '| Nome | Idade |', 'colunas: tabela 3x2 sobrevive como tabela no pipeline');
 }
 
 console.log(`\n${n} checagens, ${fail} falha(s)`);
