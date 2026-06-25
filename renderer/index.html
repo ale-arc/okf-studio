@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;" />
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; img-src 'self' data: blob:;" />
   <title>OKF Studio</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -594,6 +594,7 @@ mudanças e poderá sincronizar entre máquinas.
   <script src="../node_modules/@antv/g6/dist/g6.min.js"></script>
   <script src="okf.js"></script>
   <script src="vendor/editor.bundle.js"></script>
+  <script src="vendor/convert.bundle.js"></script>
   <script src="convert-ui.js"></script>
   <script src="renderer.js"></script>
 </body>
