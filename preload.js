@@ -36,11 +36,18 @@ contextBridge.exposeInMainWorld('okf', {
     restoreDefaults: () => ipcRenderer.invoke('templates:restoreDefaults'),
     dir: () => ipcRenderer.invoke('templates:dir')
   },
+  recents: {
+    list: () => ipcRenderer.invoke('recents:list'),
+    add: (payload) => ipcRenderer.invoke('recents:add', payload),
+    remove: (payload) => ipcRenderer.invoke('recents:remove', payload),
+    toggleFavorite: (payload) => ipcRenderer.invoke('recents:toggleFavorite', payload)
+  },
   onMenu: (channel, cb) => {
     const valid = [
       'menu:open-folder', 'menu:open-sample', 'menu:new-concept', 'menu:new-library',
       'menu:save', 'menu:reload', 'menu:validate', 'menu:graph', 'menu:about', 'menu:manual',
-      'menu:rebuild-indexes', 'menu:templates', 'menu:export-pdf', 'menu:import-doc'
+      'menu:rebuild-indexes', 'menu:templates', 'menu:export-pdf', 'menu:import-doc',
+      'menu:switch-library'
     ];
     if (valid.includes(channel)) ipcRenderer.on(channel, () => cb());
   }
