@@ -115,6 +115,20 @@ const RC = require('./src/convert/reconstruct.js');
   ok(RC.isTableStrict(cross) === null, 'tabela: item cruzando gutter -> null');
 }
 
+// ---- R3: reflow + des-hifenização ----
+const RC3 = require('./src/convert/reconstruct.js');
+{
+  const md1 = RC3.reconstructMarkdown([ it('Primeira linha do', 50, 50, 12), it('mesmo parágrafo.', 50, 64, 12) ]);
+  has(md1, 'Primeira linha do mesmo parágrafo.', 'reflow: junta linhas do mesmo parágrafo');
+
+  const md2 = RC3.reconstructMarkdown([ it('Parágrafo um.', 50, 50, 12), it('Parágrafo dois.', 50, 120, 12) ]);
+  has(md2, 'Parágrafo um.\n\nParágrafo dois.', 'reflow: gap grande separa parágrafos');
+
+  const md3 = RC3.reconstructMarkdown([ it('uma experi-', 50, 50, 12), it('ência boa', 50, 64, 12) ]);
+  has(md3, 'experiência', 'reflow: des-hifeniza palavra quebrada');
+  ok(!md3.includes('experi- ') && !/experi-\s*ência/.test(md3), 'reflow: remove o hífen de quebra');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');

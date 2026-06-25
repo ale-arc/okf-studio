@@ -123,35 +123,75 @@ function tableMarkdown(lines, cols) {
   return md;
 }
 
+function maxFont(line) { return Math.max.apply(null, line.items.map(it => it.fontSize)); }
+
+// Quebra um conjunto de linhas em sub-blocos separados por gaps de parágrafo.
+function splitByGap(lines) {
+  if (lines.length <= 1) return lines.length ? [lines] : [];
+  const gaps = [];
+  for (let i = 1; i < lines.length; i++) gaps.push(lines[i].y - lines[i - 1].y);
+  const sorted = gaps.slice().sort((a, b) => a - b);
+  const typ = sorted[Math.floor((sorted.length - 1) / 2)] || 0;
+  // Fallback: use average font size across all lines for absolute threshold.
+  const allFonts = lines.reduce((acc, l) => acc.concat(l.items.map(it => it.fontSize)), []);
+  const avgFont = allFonts.length ? allFonts.reduce((a, b) => a + b, 0) / allFonts.length : 12;
+  const absThresh = avgFont * 2;
+  const blocks = [];
+  let cur = [lines[0]];
+  for (let i = 1; i < lines.length; i++) {
+    const gap = lines[i].y - lines[i - 1].y;
+    const isParagraphBreak = (typ > 0 && gap > typ * 1.5) || gap > absThresh;
+    if (isParagraphBreak) { blocks.push(cur); cur = [lines[i]]; }
+    else cur.push(lines[i]);
+  }
+  blocks.push(cur);
+  return blocks;
+}
+
+// Junta as linhas de um sub-bloco num único parágrafo (com des-hifenização).
+function joinParagraph(lines) {
+  let cur = '';
+  for (let i = 0; i < lines.length; i++) {
+    const t = lineText(lines[i]);
+    if (i === 0) { cur = t; continue; }
+    if (/[a-zà-ÿ]-$/i.test(cur) && /^[a-zà-ÿ]/.test(t)) cur = cur.slice(0, -1) + t;
+    else cur = cur + ' ' + t;
+  }
+  return cur;
+}
+
+// Processa as linhas de UMA coluna: títulos, listas, tabelas (estritas) e parágrafos reflow-ados.
+function emitLines(lines, median) {
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const text = lineText(line);
+    const h = headingHashes(maxFont(line), median);
+    if (h) { out.push(h + text.replace(/\*{1,3}/g, '').trim()); i++; continue; }
+    if (BULLET.test(text)) { out.push('- ' + text.replace(BULLET, '')); i++; continue; }
+    let j = i;
+    while (j < lines.length) {
+      const lj = lines[j];
+      if (headingHashes(maxFont(lj), median) || BULLET.test(lineText(lj))) break;
+      j++;
+    }
+    for (const sb of splitByGap(lines.slice(i, j))) {
+      const cols = isTableStrict(sb);
+      if (cols) out.push(tableMarkdown(sb, cols).trimEnd());
+      else out.push(joinParagraph(sb));
+    }
+    i = j;
+  }
+  return out;
+}
+
 function reconstructMarkdown(items) {
   const clean = (items || []).filter(i => i && typeof i.str === 'string' && i.str.trim() !== '');
   if (!clean.length) return '';
   const median = medianFontSize(clean);
   const lines = groupLines(clean);
-
-  const out = [];
-  let i = 0;
-  while (i < lines.length) {
-    // tenta agrupar uma sequência de linhas próximas como tabela
-    let j = i + 1;
-    while (j < lines.length && (lines[j].y - lines[j - 1].y) < median * 2) j++;
-    const block = lines.slice(i, j);
-    const cols = isTableStrict(block);
-    if (cols) {
-      out.push(tableMarkdown(block, cols).trimEnd());
-      i = j;
-      continue;
-    }
-    // linha simples
-    const line = lines[i];
-    const text = lineText(line);
-    const sizeMax = Math.max(...line.items.map(it => it.fontSize));
-    const h = headingHashes(sizeMax, median);
-    if (h) out.push(h + text.replace(/\*{1,3}/g, '').trim());
-    else if (BULLET.test(text)) out.push('- ' + text.replace(BULLET, ''));
-    else out.push(text);
-    i++;
-  }
+  const out = emitLines(lines, median);
   return out.join('\n\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
