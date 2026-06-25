@@ -71,6 +71,7 @@
       "watcher.js",
       "git.js",
       "templates.js",
+      "recents.js",
       "convert-pdf.js",
       "src/convert/**/*",
       "renderer/**/*",

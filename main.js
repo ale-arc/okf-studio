@@ -10,6 +10,7 @@ const { createWatcher } = require('./watcher.js');
 const { registerGitHandlers } = require('./git.js');
 const { registerTemplateHandlers } = require('./templates.js');
 const { registerPdfHandlers } = require('./convert-pdf.js');
+const { registerRecentsHandlers } = require('./recents.js');
 
 let mainWindow = null;
 let manualUpdateCheck = false; // true when the user clicked "Verificar atualizações"
@@ -60,6 +61,10 @@ function buildMenu() {
           label: 'Nova biblioteca…',
           accelerator: 'CmdOrCtrl+Shift+N',
           click: () => mainWindow.webContents.send('menu:new-library')
+        },
+        {
+          label: 'Trocar biblioteca…',
+          click: () => mainWindow.webContents.send('menu:switch-library')
         },
         { type: 'separator' },
         {
@@ -414,6 +419,7 @@ ipcMain.handle('update:install', async () => { setImmediate(() => autoUpdater.qu
 registerGitHandlers(ipcMain, () => currentRoot);
 registerTemplateHandlers(ipcMain);
 registerPdfHandlers(ipcMain, () => currentRoot);
+registerRecentsHandlers(ipcMain);
 
 app.whenReady().then(() => {
   createWindow();
