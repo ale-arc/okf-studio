@@ -270,6 +270,32 @@ ipcMain.handle('file:delete', async (_e, { root, relPath }) => {
   return { ok: true };
 });
 
+ipcMain.handle('fs:applyOps', async (_e, { root, ops }) => {
+  libWatcher.pause();
+  let applied = 0;
+  try {
+    for (const op of (ops || [])) {
+      if (op.op === 'create' || op.op === 'write') {
+        const target = safeJoin(root, op.relPath);
+        if (op.op === 'create' && fs.existsSync(target)) throw new Error('Já existe um arquivo em ' + op.relPath);
+        await fsp.mkdir(path.dirname(target), { recursive: true });
+        await fsp.writeFile(target, op.content, 'utf8');
+      } else if (op.op === 'delete') {
+        await fsp.rm(safeJoin(root, op.relPath), { force: true });
+      } else {
+        throw new Error('Operação desconhecida: ' + op.op);
+      }
+      applied++;
+    }
+    return { ok: true, applied };
+  } catch (e) {
+    return { ok: false, applied, error: String((e && e.message) || e) };
+  } finally {
+    libWatcher.resume();
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('bundle:changed');
+  }
+});
+
 ipcMain.handle('app:confirm', async (_e, { message, detail }) => {
   const res = await dialog.showMessageBox(mainWindow, {
     type: 'warning',
