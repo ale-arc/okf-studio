@@ -981,7 +981,7 @@ async function createConcept() {
   if (tags.length) fm.tags = tags;
   fm.timestamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const tpl = state.templates.find(t => t.name === $('m-template').value);
-  const body = tpl ? tpl.body : '';
+  const body = tpl ? tpl.body.replace(/^\n+/, '') : '';
   const content = OKF.serialize(fm, '# ' + title + '\n\n' + body);
 
   const newDoc = { relPath: rel, name: baseNameOf(rel), reserved: OKF.isReserved(rel), content };
@@ -1054,7 +1054,6 @@ function refreshTemplateSelect() {
   if (state.templates.some(t => t.name === cur)) tplSel.value = cur;
   else tplSel.value = state.templates.some(t => t.name === 'Em branco') ? 'Em branco'
     : (state.templates[0] ? state.templates[0].name : '');
-  applyTemplateToForm(tplSel.value);
 }
 async function saveTpl() {
   const name = $('tpl-name').value.trim();
