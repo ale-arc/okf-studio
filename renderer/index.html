@@ -425,6 +425,21 @@ um eventual frontmatter.
 5. Clique em **Criar**. O conceito é gerado com o frontmatter e um corpo inicial,
    e já abre para edição.
 
+## 7a. Bibliotecas novas e automação
+
+- **Criar uma biblioteca:** clique em **🆕 Nova** (ou Arquivo ▸ Nova
+  biblioteca…), escolha uma pasta vazia e dê um nome. O app gera `index.md`,
+  `log.md` e um `CLAUDE.md` com as regras do formato.
+- **Índices e log automáticos:** ao criar, editar, excluir, renomear ou mover
+  conceitos, o app mantém os `index.md` de cada pasta (dentro de um bloco
+  `<!-- okf:index -->` que preserva o texto que você escreveu em volta) e
+  registra as mudanças estruturais no `log.md`. Use **Exibir ▸ Reconstruir
+  índices** para reparar uma biblioteca antiga ou após editar pelo Claude Code.
+- **Renomear/Mover:** no rodapé do conceito (ou botão direito na árvore). Os
+  links que apontavam para ele são atualizados automaticamente.
+- **Sugestão de links:** ao editar, um aviso mostra menções a outros conceitos
+  que podem virar links — você aceita uma a uma ou todas.
+
 ## 8. Como editar um conceito (editor visual)
 
 1. Selecione o conceito e clique em **✎ Editar**.
