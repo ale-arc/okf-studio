@@ -2,7 +2,7 @@
 'use strict';
 const { txtToMarkdown } = require('./txt.js');
 const { htmlToMarkdown } = require('./html.js');
-const { reconstructMarkdown } = require('./reconstruct.js');
+const { reconstructMarkdown, stripRunningHeadersFooters } = require('./reconstruct.js');
 const { slugifyAsset, rewriteImageLinks } = require('./assets.js');
 
 const pdfjs = require('pdfjs-dist/legacy/build/pdf.mjs');
@@ -57,7 +57,8 @@ async function ocrDataUrl(dataUrl, onProgress) {
 async function convertPdf(bytes, opts) {
   opts = opts || {};
   const doc = await pdfjs.getDocument({ data: bytes }).promise;
-  const parts = [];
+  // passagem 1: classificar páginas (texto vs OCR)
+  const pageInfo = []; // { type:'text', items, height } | { type:'ocr', page }
   for (let p = 1; p <= doc.numPages; p++) {
     if (opts.signal && opts.signal.aborted) throw new Error('Cancelado');
     const page = await doc.getPage(p);
@@ -65,10 +66,26 @@ async function convertPdf(bytes, opts) {
     const tc = await page.getTextContent();
     const text = tc.items.map(i => i.str).join('').trim();
     if (text.length >= 10) {
-      parts.push(reconstructMarkdown(normItems(tc, viewport)));
+      pageInfo.push({ type: 'text', items: normItems(tc, viewport), height: viewport.height });
     } else {
-      if (opts.onStatus) opts.onStatus('OCR na página ' + p + '/' + doc.numPages + '…');
-      const url = await pageToDataUrl(page, 2);
+      pageInfo.push({ type: 'ocr', page });
+    }
+  }
+  // remover cabeçalho/rodapé repetidos entre as páginas de texto
+  const textPages = pageInfo.filter(pi => pi.type === 'text');
+  const stripped = stripRunningHeadersFooters(textPages.map(pi => ({ items: pi.items, height: pi.height })));
+  let ti = 0;
+  for (const pi of pageInfo) if (pi.type === 'text') { pi.items = stripped[ti].items; ti++; }
+  // passagem 2: gerar markdown na ordem original
+  const parts = [];
+  let pageNo = 0;
+  for (const pi of pageInfo) {
+    pageNo++;
+    if (pi.type === 'text') {
+      parts.push(reconstructMarkdown(pi.items));
+    } else {
+      if (opts.onStatus) opts.onStatus('OCR na página ' + pageNo + '/' + doc.numPages + '…');
+      const url = await pageToDataUrl(pi.page, 2);
       const ocr = await ocrDataUrl(url, opts.onProgress);
       parts.push(ocr.trim());
     }
