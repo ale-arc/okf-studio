@@ -24,6 +24,92 @@ const CONCEPT_TEMPLATES = {
 };
 window.__okfTemplates = CONCEPT_TEMPLATES; // exposto para o smoke test
 
+/* ---------- Automação: preferência + montagem de ops ---------- */
+function autoIndexEnabled() {
+  try { return localStorage.getItem('okf-auto-index') !== 'off'; } catch (e) { return true; }
+}
+function setAutoIndex(on) {
+  try { localStorage.setItem('okf-auto-index', on ? 'on' : 'off'); } catch (e) {}
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function baseNameOf(rel) { return rel.split('/').pop(); }
+function docByRel(rel) { return state.docs.find(d => d.relPath === rel); }
+
+// Todos os diretórios que devem ter index.md: raiz ('') + cada ancestral com conceito.
+function indexDirs(docs) {
+  const dirs = new Set(['']);
+  for (const d of docs) {
+    if (OKF.isReserved(d.relPath)) continue;
+    if (!d.relPath.includes('/')) continue;
+    const parts = d.relPath.split('/'); parts.pop();
+    let acc = '';
+    for (const p of parts) { acc = acc ? acc + '/' + p : p; dirs.add(acc); }
+  }
+  return [...dirs];
+}
+
+function indexContentFor(docs, dir) {
+  const rel = dir ? dir + '/index.md' : 'index.md';
+  const existing = docs.find(d => d.relPath === rel) || docByRel(rel);
+  const listing = dir === '' ? OKF.auto.rootListing(docs) : OKF.auto.dirListing(docs, dir);
+  let base;
+  if (existing) {
+    base = existing.content;
+  } else if (dir === '') {
+    base = OKF.serialize({ okf_version: '0.1' },
+      '# ' + (state.name || 'Biblioteca') + '\n\nÍndice da biblioteca.\n\n' +
+      OKF.auto.MARK_START + '\n' + OKF.auto.MARK_END + '\n');
+  } else {
+    base = '# ' + OKF.auto.headingFor(dir.split('/').pop()) + '\n\n' +
+      OKF.auto.MARK_START + '\n' + OKF.auto.MARK_END + '\n';
+  }
+  return OKF.auto.mergeManagedBlock(base, listing);
+}
+
+// Ops para (re)escrever todos os index.md a partir de um conjunto de docs.
+function indexOpsFrom(docs) {
+  const ops = [];
+  for (const dir of indexDirs(docs)) {
+    const rel = dir ? dir + '/index.md' : 'index.md';
+    const content = indexContentFor(docs, dir);
+    const existing = docs.find(d => d.relPath === rel);
+    if (!existing) ops.push({ op: 'create', relPath: rel, content });
+    else if (existing.content !== content) ops.push({ op: 'write', relPath: rel, content });
+  }
+  return ops;
+}
+
+// Op para o log.md, a partir de um conjunto de docs (usa o conteúdo já presente).
+function logOpFrom(docs, entry) {
+  const existing = docs.find(d => d.relPath === 'log.md');
+  const base = existing ? existing.content : '# Histórico de Atualizações\n';
+  const content = OKF.auto.appendLog(base, todayStr(), entry);
+  return existing ? { op: 'write', relPath: 'log.md', content } : { op: 'create', relPath: 'log.md', content };
+}
+
+// Aplica um lote e recarrega o estado do disco; seleciona selectRel se informado.
+async function applyOpsAndRefresh(ops, selectRel) {
+  const r = await window.okf.applyOps({ root: state.root, ops });
+  if (!r || !r.ok) {
+    toast('Erro ao gravar: ' + ((r && r.error) || 'desconhecido'), 'bad');
+    await refreshFromDisk(null);
+    return false;
+  }
+  await refreshFromDisk(selectRel);
+  return true;
+}
+
+async function refreshFromDisk(selectRel) {
+  const res = await window.okf.readBundle(state.root);
+  state.docs = res.docs || [];
+  indexDocs(); buildTypeFilter(); renderTree();
+  $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
+  const want = selectRel || state.current;
+  if (want && state.docs.some(d => d.relPath === want)) openDoc(want);
+  else if (state.docs.length) { const f = state.docs.find(d => !d.reserved) || state.docs[0]; openDoc(f.relPath); }
+  else showEmpty();
+}
+
 /* ---------- Tema (claro/escuro) ---------- */
 function currentTheme() {
   return document.documentElement.getAttribute('data-theme') || 'dark';
