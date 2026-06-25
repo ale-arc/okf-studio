@@ -780,6 +780,9 @@ function paletteActions() {
     { label: 'Painel Git', run: showGit, needsLib: true },
     { label: 'Claude Code (terminal)', run: openClaude, needsLib: true },
     { label: 'Recarregar biblioteca', run: reload, needsLib: true },
+    { label: 'Reconstruir índices', run: rebuildIndexes, needsLib: true },
+    { label: autoIndexEnabled() ? 'Índices automáticos: DESLIGAR' : 'Índices automáticos: LIGAR',
+      run: () => { setAutoIndex(!autoIndexEnabled()); toast('Índices automáticos: ' + (autoIndexEnabled() ? 'ligados' : 'desligados'), 'good'); }, needsLib: false },
     { label: 'Manual do OKF Studio', run: showManual, needsLib: false },
     { label: 'Alternar tema claro/escuro', run: toggleTheme, needsLib: false },
     { label: 'Abrir biblioteca…', run: openFolder, needsLib: false },
@@ -873,6 +876,20 @@ async function createConcept() {
   closeModal();
   const ok = await applyOpsAndRefresh(ops, rel);
   if (ok) toast('Conceito criado: ' + rel, 'good');
+}
+
+/* ---------- Reconstruir índices ---------- */
+async function rebuildIndexes() {
+  if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
+  const ops = indexOpsFrom(state.docs);
+  if (!ops.length) { toast('Índices já estão atualizados.', 'good'); return; }
+  const ok = await window.okf.confirm({
+    message: 'Reconstruir índices?',
+    detail: ops.length + ' arquivo(s) index.md serão (re)escritos. A prosa fora dos blocos gerenciados é preservada.'
+  });
+  if (!ok) return;
+  const done = await applyOpsAndRefresh(ops, state.current);
+  if (done) toast('Índices reconstruídos (' + ops.length + ' arquivo(s)).', 'good');
 }
 
 /* ---------- Validation ---------- */
@@ -1141,6 +1158,7 @@ function init() {
   window.okf.onMenu('menu:reload', reload);
   window.okf.onMenu('menu:validate', showValidation);
   window.okf.onMenu('menu:graph', showGraph);
+  window.okf.onMenu('menu:rebuild-indexes', rebuildIndexes);
   window.okf.onMenu('menu:manual', showManual);
   window.okf.onMenu('menu:about', () => toast('OKF Studio ' + (appVersion ? 'v' + appVersion + ' · ' : '') + 'editor de bibliotecas Open Knowledge Format v0.1', 'good'));
 
