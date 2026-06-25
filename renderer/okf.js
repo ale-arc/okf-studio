@@ -160,8 +160,31 @@
     };
   }
 
+  // ---- Automação determinística (índices, log, rename, cross-links) ----
+  const MARK_START = '<!-- okf:index -->';
+  const MARK_END = '<!-- /okf:index -->';
+
+  function baseName(relPath) { return relPath.split('/').pop().replace(/\.md$/i, ''); }
+  function dirOf(relPath) { return relPath.includes('/') ? relPath.replace(/\/[^/]*$/, '') : ''; }
+  function headingFor(seg) { return seg ? seg.charAt(0).toUpperCase() + seg.slice(1) : seg; }
+
+  function titleOf(doc) {
+    const f = parse(doc.content).frontmatter;
+    return (f && f.title) ? String(f.title) : baseName(doc.relPath);
+  }
+  function descOf(doc) {
+    const f = parse(doc.content).frontmatter;
+    return (f && f.description) ? String(f.description) : '';
+  }
+  function bulletFor(doc) {
+    const desc = descOf(doc);
+    return '* [' + titleOf(doc) + '](/' + doc.relPath + ')' + (desc ? ' - ' + desc : '');
+  }
+
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor };
+
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,
-    extractLinks, resolveTarget, isExternal, buildGraph, validate
+    extractLinks, resolveTarget, isExternal, buildGraph, validate, auto
   };
 })(window);
