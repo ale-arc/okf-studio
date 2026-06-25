@@ -129,6 +129,23 @@ const RC3 = require('./src/convert/reconstruct.js');
   ok(!md3.includes('experi- ') && !/experi-\s*ência/.test(md3), 'reflow: remove o hífen de quebra');
 }
 
+// ---- R4: multi-coluna ----
+const RC4 = require('./src/convert/reconstruct.js');
+{
+  const items = [];
+  for (let k = 0; k < 6; k++) { items.push(it('L' + k, 50, 30 + k * 40, 12)); items.push(it('R' + k, 400, 30 + k * 40, 12)); }
+  const groups = RC4.splitColumns(items);
+  ok(groups.length === 2, 'colunas: detecta 2 colunas');
+  ok(groups[0].every(i => i.x < 200) && groups[1].every(i => i.x >= 200), 'colunas: separa esquerda/direita');
+
+  const md = RC4.reconstructMarkdown(items);
+  ok(md.indexOf('L5') < md.indexOf('R0'), 'colunas: lê coluna esquerda inteira antes da direita');
+
+  const single = [];
+  for (let k = 0; k < 8; k++) single.push(it('linha ' + k, 50, 30 + k * 20, 12));
+  ok(RC4.splitColumns(single).length === 1, 'colunas: 1 coluna permanece única');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');

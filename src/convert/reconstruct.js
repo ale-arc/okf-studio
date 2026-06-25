@@ -186,13 +186,54 @@ function emitLines(lines, median) {
   return out;
 }
 
+// Divide os itens de uma página em colunas (ordem de leitura esquerda->direita).
+// Retorna um array de arrays de itens; [items] se não houver layout multi-coluna claro.
+function splitColumns(items) {
+  if (items.length < 6) return [items];
+  const minX = Math.min.apply(null, items.map(i => i.x));
+  const maxX = Math.max.apply(null, items.map(i => i.x + i.w));
+  const ys = items.map(i => i.y);
+  const minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+  const width = maxX - minX, vext = maxY - minY;
+  if (width <= 0 || vext <= 0) return [items];
+  const N = 100, bin = width / N;
+  const cover = new Array(N).fill(0);
+  for (const it of items) {
+    const a = Math.max(0, Math.floor((it.x - minX) / bin));
+    const b = Math.min(N - 1, Math.floor((it.x + it.w - minX) / bin));
+    for (let k = a; k <= b; k++) cover[k]++;
+  }
+  const minGutter = Math.max(2, Math.ceil(N * 0.05));
+  let best = null, run = 0, runStart = 0;
+  for (let k = 0; k < N; k++) {
+    if (cover[k] === 0) { if (run === 0) runStart = k; run++; }
+    else {
+      if (run >= minGutter && runStart > 0) {
+        const c = { start: runStart, end: k - 1 };
+        if (!best || (c.end - c.start) > (best.end - best.start)) best = c;
+      }
+      run = 0;
+    }
+  }
+  if (!best) return [items];
+  const gMid = minX + ((best.start + best.end + 1) / 2) * bin;
+  const left = items.filter(i => (i.x + i.w / 2) < gMid);
+  const right = items.filter(i => (i.x + i.w / 2) >= gMid);
+  if (left.length < items.length * 0.2 || right.length < items.length * 0.2) return [items];
+  const yext = arr => { const a = arr.map(i => i.y); return Math.max.apply(null, a) - Math.min.apply(null, a); };
+  if (yext(left) < vext * 0.6 || yext(right) < vext * 0.6) return [items];
+  return [...splitColumns(left), ...splitColumns(right)];
+}
+
 function reconstructMarkdown(items) {
   const clean = (items || []).filter(i => i && typeof i.str === 'string' && i.str.trim() !== '');
   if (!clean.length) return '';
   const median = medianFontSize(clean);
-  const lines = groupLines(clean);
-  const out = emitLines(lines, median);
+  const out = [];
+  for (const colItems of splitColumns(clean)) {
+    out.push(...emitLines(groupLines(colItems), median));
+  }
   return out.join('\n\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
-module.exports = { reconstructMarkdown, groupLines, isTableStrict };
+module.exports = { reconstructMarkdown, groupLines, isTableStrict, splitColumns };
