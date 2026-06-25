@@ -13,6 +13,14 @@ Copie-o para a raiz da sua biblioteca real.
   conceitos: `[orders](/tables/orders.md)`.
 - Mantenha `index.md` em cada diretório (lista os itens com 1 linha de
   descrição) e um `log.md` na raiz (histórico, mais recente no topo).
+- **Convenção desta biblioteca (OKF Studio):** a pasta de cada conceito é o
+  **slug do seu `type`** — caminho `slug(type)/slug(titulo).md`, estrutura
+  plana. Ao criar ou mover conceitos, respeite essa correspondência pasta = tipo
+  (ex.: `type: Referência` → `referencia/…`).
+- **Listagem dos `index.md`:** o OKF Studio é o dono da listagem (o bloco entre
+  `<!-- okf:index -->` e `<!-- /okf:index -->`) e a regenera automaticamente,
+  agrupada por tipo. Não edite a listagem à mão; você pode editar o texto fora
+  do bloco gerenciado.
 
 ## Workflows
 
