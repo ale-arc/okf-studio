@@ -17,8 +17,8 @@ function sortAndCap(list) {
   if (arr.length <= CAP) return arr;
   const favs = arr.filter(e => e.favorite);
   const rest = arr.filter(e => !e.favorite).slice(0, Math.max(0, CAP - favs.length));
-  const keep = new Set([...favs, ...rest]);
-  return arr.filter(e => keep.has(e));
+  const keepPaths = new Set([...favs, ...rest].map(e => e.path));
+  return arr.filter(e => keepPaths.has(e.path));
 }
 
 // Insere/atualiza por path (chave de dedup); preserva o favorite anterior.
