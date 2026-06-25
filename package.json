@@ -55,6 +55,8 @@
       "watcher.js",
       "git.js",
       "templates.js",
+      "convert-pdf.js",
+      "src/convert/**/*",
       "renderer/**/*",
       "renderer/vendor/**/*",
       "build/icon.png",
