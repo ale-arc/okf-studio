@@ -12,18 +12,34 @@ const state = {
   editorMode: 'visual',
   editorBody: '',
   linkSuggestions: [],
+  templates: [],
 };
 
-/* ---------- Modelos de conceito (por tipo) ---------- */
-const CONCEPT_TEMPLATES = {
-  'Em branco': { type: '', body: 'Descreva aqui.\n' },
-  'Projeto':   { type: 'Projeto',   body: '## Objetivo\n\n\n## Status\n\n\n## Marcos\n\n' },
-  'Processo':  { type: 'Processo',  body: '## Quando usar\n\n\n## Passos\n\n1. \n\n## Responsáveis\n\n' },
-  'Métrica':   { type: 'Métrica',   body: '## Definição\n\n\n## Como calcular\n\n\n## Fonte\n\n' },
-  'Referência':{ type: 'Referência',body: '## Resumo\n\n\n## Detalhes\n\n' },
-  'Playbook':  { type: 'Playbook',  body: '## Gatilho\n\n\n## Passos\n\n1. \n\n## Pós-ação\n\n' }
-};
-window.__okfTemplates = CONCEPT_TEMPLATES; // exposto para o smoke test
+/* ---------- Modelos do usuário (fora da biblioteca) ---------- */
+async function loadTemplates() {
+  try {
+    const raw = await window.okf.templates.list();
+    state.templates = (raw || []).map(t => {
+      const p = OKF.parse(t.content);
+      const f = p.frontmatter || {};
+      return {
+        name: t.name,
+        type: f.type ? String(f.type) : '',
+        description: f.description ? String(f.description) : '',
+        tags: Array.isArray(f.tags) ? f.tags.map(String) : (f.tags ? [String(f.tags)] : []),
+        body: p.body || ''
+      };
+    });
+  } catch (e) { state.templates = []; }
+  window.__okfTemplates = state.templates; // usado pelo smoke test
+}
+function applyTemplateToForm(name) {
+  const t = state.templates.find(x => x.name === name);
+  if (!t) return;
+  $('m-type').value = t.type || '';
+  $('m-description').value = t.description || '';
+  $('m-tags').value = (t.tags || []).join(', ');
+}
 
 /* ---------- Automação: preferência + montagem de ops ---------- */
 function autoIndexEnabled() {
@@ -933,8 +949,10 @@ function openModal() {
   if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
   ['m-path', 'm-type', 'm-title', 'm-description', 'm-tags'].forEach(id => $(id).value = '');
   const tplSel = $('m-template');
-  if (!tplSel.options.length) tplSel.innerHTML = Object.keys(CONCEPT_TEMPLATES).map(n => `<option>${escapeHtml(n)}</option>`).join('');
-  tplSel.value = 'Em branco';
+  tplSel.innerHTML = state.templates.map(t => `<option>${escapeHtml(t.name)}</option>`).join('');
+  tplSel.value = state.templates.some(t => t.name === 'Em branco') ? 'Em branco'
+    : (state.templates[0] ? state.templates[0].name : '');
+  applyTemplateToForm(tplSel.value);
   // categorias = pastas de topo existentes + opção de nova
   const tops = new Set();
   for (const d of state.docs) { if (!d.reserved && d.relPath.includes('/')) tops.add(d.relPath.split('/')[0]); }
@@ -961,8 +979,9 @@ async function createConcept() {
   const tags = $('m-tags').value.split(',').map(s => s.trim()).filter(Boolean);
   if (tags.length) fm.tags = tags;
   fm.timestamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-  const tpl = CONCEPT_TEMPLATES[$('m-template').value] || CONCEPT_TEMPLATES['Em branco'];
-  const content = OKF.serialize(fm, '# ' + title + '\n\n' + tpl.body);
+  const tpl = state.templates.find(t => t.name === $('m-template').value);
+  const body = tpl ? tpl.body : '';
+  const content = OKF.serialize(fm, '# ' + title + '\n\n' + body);
 
   const newDoc = { relPath: rel, name: baseNameOf(rel), reserved: OKF.isReserved(rel), content };
   const nextDocs = state.docs.concat([newDoc]);
@@ -1237,10 +1256,7 @@ function init() {
     const file = baseNameOf($('m-path').value.trim() || 'novo.md');
     $('m-path').value = dir ? dir + '/' + file : file;
   });
-  $('m-template').addEventListener('change', () => {
-    const tpl = CONCEPT_TEMPLATES[$('m-template').value];
-    if (tpl && tpl.type && !$('m-type').value.trim()) $('m-type').value = tpl.type;
-  });
+  $('m-template').addEventListener('change', () => applyTemplateToForm($('m-template').value));
   $('palette-input').addEventListener('input', (e) => renderPalette(e.target.value));
   $('palette-input').addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); movePalette(1); }
@@ -1271,6 +1287,7 @@ function init() {
   initTheme();
   loadVersion();
   wireUpdates();
+  loadTemplates();
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); openPalette(); return; }
