@@ -26,6 +26,18 @@ const { txtToMarkdown } = require('./src/convert/txt.js');
   ok(txtToMarkdown('') === '', 'txt: vazio vira vazio');
 }
 
+// ---- Task B3: htmlToMarkdown ----
+const { htmlToMarkdown } = require('./src/convert/html.js');
+{
+  has(htmlToMarkdown('<h1>Olá</h1>'), '# Olá', 'html: h1 vira #');
+  has(htmlToMarkdown('<p><strong>x</strong></p>'), '**x**', 'html: strong vira **');
+  has(htmlToMarkdown('<ul><li>a</li><li>b</li></ul>'), '-   a', 'html: lista');
+  const t = htmlToMarkdown('<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>');
+  has(t, '| A | B |', 'html: tabela GFM (cabeçalho)');
+  has(t, '| 1 | 2 |', 'html: tabela GFM (linha)');
+  has(htmlToMarkdown('<a href="https://x.com">link</a>'), '[link](https://x.com)', 'html: link');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');
