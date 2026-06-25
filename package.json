@@ -10,7 +10,7 @@
     "build:convert": "esbuild src/convert/index.js --bundle --format=iife --global-name=OKFConvert --outfile=renderer/vendor/convert.bundle.js --legal-comments=none && node scripts/copy-convert-assets.mjs",
     "prestart": "npm run build:editor && npm run build:convert",
     "start": "electron .",
-    "test": "node test-okf.js",
+    "test": "node test-okf.js && node test-convert.js",
     "test:ui": "electron test-renderer.js",
     "test:watch": "node test-watcher.js",
     "test:git": "node test-git.js",
