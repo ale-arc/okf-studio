@@ -286,6 +286,9 @@ function renderTree() {
       node.querySelector('.ttl').textContent = it.title;
       if (it.type) node.querySelector('.badge').textContent = it.type;
       node.addEventListener('click', () => openDoc(it.d.relPath));
+      if (!it.d.reserved) {
+        node.addEventListener('contextmenu', (e) => { e.preventDefault(); openTreeMenu(e, it.d.relPath); });
+      }
       tree.appendChild(node);
     }
   }
@@ -302,6 +305,17 @@ function buildTypeFilter() {
   sel.innerHTML = '<option value="">Todos os tipos</option>' +
     [...types].sort().map(t => `<option>${escapeHtml(t)}</option>`).join('');
 }
+
+/* ---------- Menu de contexto da árvore ---------- */
+let treeMenuRel = null;
+function openTreeMenu(e, rel) {
+  treeMenuRel = rel;
+  const m = $('tree-menu');
+  m.style.left = e.clientX + 'px';
+  m.style.top = e.clientY + 'px';
+  m.classList.remove('hidden');
+}
+function closeTreeMenu() { $('tree-menu').classList.add('hidden'); treeMenuRel = null; }
 
 /* ---------- View states ---------- */
 function showEmpty(){ $('empty').classList.remove('hidden'); $('viewer').classList.add('hidden'); }
@@ -412,6 +426,7 @@ function renderConcept(doc) {
   $('btn-save').classList.add('hidden');
   $('btn-cancel').classList.add('hidden');
   $('btn-delete').classList.toggle('hidden', doc.reserved);
+  $('btn-rename').classList.toggle('hidden', doc.reserved);
 
   const p = parsedOf(doc);
   const id = OKF.conceptId(doc.relPath);
@@ -493,6 +508,7 @@ async function enterEdit() {
   $('btn-edit').classList.add('hidden');
   $('btn-save').classList.remove('hidden');
   $('btn-cancel').classList.remove('hidden');
+  $('btn-rename').classList.add('hidden');
 
   const p = OKF.parse(doc.content);
   const f = p.frontmatter;
@@ -682,6 +698,57 @@ async function saveEdit() {
   } catch (e) {
     toast('Erro ao salvar: ' + e.message, 'bad');
   }
+}
+
+/* ---------- Renomear / Mover ---------- */
+let renameFrom = null;
+function openRename(rel) {
+  rel = rel || state.current;
+  const doc = rel && docByRel(rel);
+  if (!doc || doc.reserved) { toast('Selecione um conceito (não reservado).', 'bad'); return; }
+  renameFrom = rel;
+  $('rn-path').value = rel;
+  $('rn-hint').textContent = 'Atual: ' + rel + ' — os links que apontam para este conceito serão atualizados.';
+  $('rename-modal').classList.remove('hidden');
+  $('rn-path').focus();
+}
+function closeRename() { $('rename-modal').classList.add('hidden'); renameFrom = null; }
+
+async function doRename() {
+  const fromRel = renameFrom;
+  let toRel = $('rn-path').value.trim().replace(/^\/+/, '');
+  if (!fromRel) return;
+  if (!toRel) { toast('Informe o novo caminho.', 'bad'); return; }
+  if (!toRel.toLowerCase().endsWith('.md')) toRel += '.md';
+  if (toRel === fromRel) { closeRename(); return; }
+  if (docByRel(toRel)) { toast('Já existe um conceito em ' + toRel, 'bad'); return; }
+
+  const changes = OKF.auto.rewriteRenameLinks(state.docs, fromRel, toRel);
+  const movedChange = changes.find(c => c.relPath === fromRel);
+  const movedContent = movedChange ? movedChange.newContent : docByRel(fromRel).content;
+
+  let nextDocs = state.docs.filter(d => d.relPath !== fromRel).map(d => {
+    const c = changes.find(x => x.relPath === d.relPath);
+    return c ? { ...d, content: c.newContent } : d;
+  });
+  nextDocs.push({ relPath: toRel, name: baseNameOf(toRel), reserved: OKF.isReserved(toRel), content: movedContent });
+
+  const ops = [{ op: 'create', relPath: toRel, content: movedContent }, { op: 'delete', relPath: fromRel }];
+  for (const c of changes) {
+    if (c.relPath === fromRel) continue;
+    ops.push({ op: 'write', relPath: c.relPath, content: c.newContent });
+  }
+  if (autoIndexEnabled()) {
+    ops.push(...indexOpsFrom(nextDocs));
+    const sameDir = (fromRel.includes('/') ? fromRel.replace(/\/[^/]*$/, '') : '') ===
+                    (toRel.includes('/') ? toRel.replace(/\/[^/]*$/, '') : '');
+    const title = OKF.parse(movedContent).frontmatter.title || baseNameOf(toRel).replace(/\.md$/i, '');
+    const verbo = sameDir ? 'Renomeação' : 'Movimentação';
+    ops.push(logOpFrom(nextDocs, '**' + verbo + '**: `' + fromRel + '` → [' + title + '](/' + toRel + ').'));
+  }
+  closeRename();
+  const ok = await applyOpsAndRefresh(ops, toRel);
+  if (ok) toast('Movido para ' + toRel, 'good');
 }
 
 /* ---------- Delete ---------- */
@@ -1018,6 +1085,16 @@ function init() {
     btn.addEventListener('click', () => runToolbar(btn.dataset.cmd));
   });
   $('btn-delete').onclick = deleteCurrent;
+  $('btn-rename').onclick = () => openRename(state.current);
+  $('rn-cancel').onclick = closeRename;
+  $('rn-ok').onclick = doRename;
+  $('tree-menu').querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', () => {
+    const rel = treeMenuRel; const act = b.dataset.act; closeTreeMenu();
+    if (!rel) return;
+    if (act === 'rename') openRename(rel);
+    else if (act === 'delete') { openDoc(rel); deleteCurrent(); }
+  }));
+  document.addEventListener('click', (e) => { if (!$('tree-menu').contains(e.target)) closeTreeMenu(); });
   $('graph-close').onclick = () => {
     if (g6graph) { g6graph.destroy(); g6graph = null; }
     closeOverlays();
@@ -1073,7 +1150,7 @@ function init() {
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); openPalette(); return; }
-    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); closeRename(); closeTreeMenu(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();

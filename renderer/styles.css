@@ -251,3 +251,27 @@ button.update:disabled{opacity:1;color:#06281c}
   background:var(--panel2);border:1px solid var(--line);border-radius:9px;
   padding:11px 18px;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.4)}
 .toast.good{border-color:var(--good)} .toast.bad{border-color:var(--bad)}
+
+.tree-menu {
+  position: fixed;
+  z-index: 50;
+  background: var(--panel, #2a2b30);
+  border: 1px solid var(--line, #3a3b42);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+}
+.tree-menu button {
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text, #e6e6e6);
+}
+.tree-menu button:hover { background: var(--hover, rgba(255,255,255,.08)); }
+.tree-menu.hidden { display: none; }
