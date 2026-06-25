@@ -57,20 +57,20 @@ function headingHashes(size, median) {
 
 const BULLET = /^([•\-\*•●▪]|\d+[.)])\s+/;
 
-// Detecta um bloco de linhas como tabela: ≥2 linhas que compartilham ≥2 colunas (clusters de x).
 function detectColumns(lines) {
   const xs = [];
   for (const l of lines) for (const it of l.items) xs.push(it.x);
   xs.sort((a, b) => a - b);
-  const cols = [];
+  const clusters = [];
   for (const x of xs) {
-    const c = cols.find(c => Math.abs(c - x) <= 12);
-    if (c == null) cols.push(x);
+    const last = clusters[clusters.length - 1];
+    if (last && x - last.max <= 12) { last.max = x; last.xs.push(x); }
+    else clusters.push({ max: x, xs: [x] });
   }
-  return cols.sort((a, b) => a - b);
+  return clusters.map(c => c.xs.reduce((a, b) => a + b, 0) / c.xs.length);
 }
 
-function cellsFor(line, cols) {
+function assignCells(line, cols) {
   const cells = cols.map(() => '');
   for (const it of line.items) {
     let bi = 0, best = Infinity;
@@ -80,25 +80,42 @@ function cellsFor(line, cols) {
   return cells.map(c => c.trim());
 }
 
-function isTableBlock(lines) {
+function hasGutters(lines, cols) {
+  for (let i = 0; i < cols.length - 1; i++) {
+    const b = (cols[i] + cols[i + 1]) / 2;
+    let cross = 0;
+    for (const l of lines) {
+      for (const it of l.items) {
+        if (it.x < b - 1 && (it.x + it.w) > b + 1) { cross++; break; }
+      }
+    }
+    if (cross > lines.length * 0.3) return false;
+  }
+  return true;
+}
+
+// Retorna o array de colunas (centroides x) se o bloco for tabela; senão null.
+// Aceita tanto um array de linhas já agrupadas (cada elemento tem .items) quanto
+// um array plano de itens (cada elemento tem .str), que serão agrupados automaticamente.
+function isTableStrict(lines) {
+  if (!lines || lines.length < 2) return null;
+  // Normaliza: se os elementos não têm .items, são itens planos — agrupa primeiro.
+  if (lines[0] && !lines[0].items) lines = groupLines(lines);
   if (lines.length < 2) return null;
   const cols = detectColumns(lines);
   if (cols.length < 2) return null;
-  // exige que a maioria das linhas tenha itens em ≥2 colunas distintas
-  const multi = lines.filter(l => {
-    const hit = new Set();
-    for (const it of l.items) {
-      let bi = 0, best = Infinity;
-      cols.forEach((c, i) => { const d = Math.abs(c - it.x); if (d < best) { best = d; bi = i; } });
-      hit.add(bi);
-    }
-    return hit.size >= 2;
-  });
-  return multi.length >= Math.max(2, Math.ceil(lines.length * 0.6)) ? cols : null;
+  const rows = lines.map(l => assignCells(l, cols));
+  const multi = rows.filter(c => c.filter(Boolean).length >= 2).length;
+  if (multi < Math.max(2, Math.ceil(lines.length * 0.7))) return null;
+  let filled = 0, total = 0;
+  for (const c of rows) for (const cell of c) { total++; if (cell) filled++; }
+  if (!total || filled / total < 0.5) return null;
+  if (!hasGutters(lines, cols)) return null;
+  return cols;
 }
 
 function tableMarkdown(lines, cols) {
-  const rows = lines.map(l => cellsFor(l, cols));
+  const rows = lines.map(l => assignCells(l, cols));
   const head = rows[0];
   let md = '| ' + head.join(' | ') + ' |\n';
   md += '| ' + head.map(() => '---').join(' | ') + ' |\n';
@@ -119,7 +136,7 @@ function reconstructMarkdown(items) {
     let j = i + 1;
     while (j < lines.length && (lines[j].y - lines[j - 1].y) < median * 2) j++;
     const block = lines.slice(i, j);
-    const cols = block.length >= 2 ? isTableBlock(block) : null;
+    const cols = isTableStrict(block);
     if (cols) {
       out.push(tableMarkdown(block, cols).trimEnd());
       i = j;
@@ -138,4 +155,4 @@ function reconstructMarkdown(items) {
   return out.join('\n\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
-module.exports = { reconstructMarkdown, groupLines, isTableBlock };
+module.exports = { reconstructMarkdown, groupLines, isTableStrict };

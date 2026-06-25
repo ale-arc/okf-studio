@@ -93,6 +93,28 @@ const { reconstructMarkdown: _rmLig } = require('./src/convert/reconstruct.js');
   ok(!/cient[íi]\s+fi/.test(md), 'ligadura: não deixa "cientí fi"');
 }
 
+// ---- R2: tabela estrita ----
+const RC = require('./src/convert/reconstruct.js');
+{
+  const tbl = [
+    it('Nome', 50, 50, 12), it('Idade', 200, 50, 12),
+    it('Ana', 50, 70, 12),  it('30', 200, 70, 12),
+    it('Beto', 50, 90, 12), it('41', 200, 90, 12)
+  ];
+  ok(RC.isTableStrict(tbl) && RC.isTableStrict(tbl).length === 2, 'tabela: 3x2 real detectada (2 colunas)');
+
+  ok(RC.isTableStrict([ it('uma linha só', 50, 50, 12) ]) === null, 'tabela: 1 linha -> null');
+
+  const inc = [ it('A', 50, 50, 12), it('B', 200, 50, 12), it('frase longa', 50, 70, 12), it('outra', 50, 90, 12) ];
+  ok(RC.isTableStrict(inc) === null, 'tabela: colunas inconsistentes -> null');
+
+  const cross = [
+    it('x', 50, 50, 12), it('y', 150, 50, 12), it('atravessa tudo', 40, 50, 12, { w: 140 }),
+    it('x', 50, 70, 12), it('y', 150, 70, 12), it('atravessa tudo', 40, 70, 12, { w: 140 })
+  ];
+  ok(RC.isTableStrict(cross) === null, 'tabela: item cruzando gutter -> null');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');
