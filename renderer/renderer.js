@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -452,7 +452,7 @@ function openTreeMenu(e, rel) {
 function closeTreeMenu() { $('tree-menu').classList.add('hidden'); treeMenuRel = null; }
 
 /* ---------- View states ---------- */
-function showEmpty(){ $('empty').classList.remove('hidden'); $('viewer').classList.add('hidden'); }
+function showEmpty(){ $('empty').classList.remove('hidden'); $('viewer').classList.add('hidden'); $('recent-list').classList.add('hidden'); }
 function showViewer(){ $('empty').classList.add('hidden'); $('viewer').classList.remove('hidden'); }
 function closeOverlays(){ $('graph-view').classList.add('hidden'); $('validate-view').classList.add('hidden'); $('manual-view').classList.add('hidden'); $('git-view').classList.add('hidden'); }
 
