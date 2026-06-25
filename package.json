@@ -14,6 +14,7 @@
     "test:watch": "node test-watcher.js",
     "test:git": "node test-git.js",
     "test:auto": "node test-auto.js",
+    "test:templates": "node test-templates.js",
     "make:icon": "electron tools/make-icon.js",
     "check:files": "node scripts/check-package-files.mjs",
     "dist": "npm run check:files && npm run build:editor && electron-builder --win --x64",
