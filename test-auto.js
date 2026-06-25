@@ -131,6 +131,30 @@ ok(A.rootListing(docsT2).includes('## Processos'), 'rootListing tem seção da c
 ok(A.rootListing(docsT2).indexOf('* [Raiz](/raiz.md) - R.') < A.rootListing(docsT2).indexOf('## Processos'),
    'rootListing lista conceitos da raiz antes das categorias');
 
+// ---- Task 18: smoke de orquestração (índices + log a partir de docs) ----
+function mkDocs() {
+  return [
+    { relPath: 'index.md', name: 'index.md', reserved: true, content: OKF.serialize({ okf_version: '0.1' }, '# Base\n\n' + A.MARK_START + '\n' + A.MARK_END + '\n') },
+    { relPath: 'log.md', name: 'log.md', reserved: true, content: '# Histórico de Atualizações\n' },
+    { relPath: 'projetos/index.md', name: 'index.md', reserved: true, content: '# Projetos\n\n' + A.MARK_START + '\n' + A.MARK_END + '\n' },
+  ];
+}
+const docsT18 = mkDocs();
+const novo = { relPath: 'projetos/x.md', name: 'x.md', reserved: false, content: OKF.serialize({ type: 'Projeto', title: 'X', description: 'Desc X.' }, '# X') };
+const next18 = docsT18.concat([novo]);
+
+// índice da pasta deve listar o novo conceito
+const projIdx = A.mergeManagedBlock(docsT18[2].content, A.dirListing(next18, 'projetos'));
+ok(projIdx.includes('* [X](/projetos/x.md) - Desc X.'), 'smoke: projetos/index.md lista o conceito');
+
+// índice raiz deve listar na seção Projetos
+const rootIdx = A.mergeManagedBlock(docsT18[0].content, A.rootListing(next18));
+ok(rootIdx.includes('## Projetos') && rootIdx.includes('* [X](/projetos/x.md) - Desc X.'), 'smoke: index raiz lista na categoria');
+
+// log recebe entrada de criação
+const log18 = A.appendLog(docsT18[1].content, '2026-06-25', '**Criação**: [X](/projetos/x.md) - Desc X.');
+ok(log18.includes('## 2026-06-25') && log18.includes('**Criação**: [X](/projetos/x.md)'), 'smoke: log recebe Criação');
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('AUTO OK');
