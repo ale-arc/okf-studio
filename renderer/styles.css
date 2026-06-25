@@ -355,12 +355,12 @@ button.update:disabled{opacity:1;color:#06281c}
 #sidebar-tools #search { width: 100%; box-sizing: border-box; }
 #sidebar-tools .sb-row { display: flex; gap: 6px; align-items: center; }
 #sidebar-tools .sb-row #type-filter { flex: 1; min-width: 0; }
-.seg { display: inline-flex; background: var(--input-bg); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
-.seg button { background: none; border: none; color: var(--muted); font-size: 12px; padding: 5px 10px; cursor: pointer; border-left: 1px solid var(--line); }
-.seg button:first-child { border-left: none; }
-.seg button:hover { background: var(--hover); color: var(--text); }
-.seg button.on { background: var(--active); color: var(--accent); }
-.seg button:disabled { opacity: .5; cursor: default; }
+#group-seg { display: inline-flex; background: var(--input-bg); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+#group-seg button { background: none; border: none; color: var(--muted); font-size: 12px; padding: 5px 10px; cursor: pointer; border-left: 1px solid var(--line); }
+#group-seg button:first-child { border-left: none; }
+#group-seg button:hover { background: var(--hover); color: var(--text); }
+#group-seg button.on { background: var(--active); color: var(--accent); }
+#group-seg button:disabled { opacity: .5; cursor: default; }
 
 /* ---------- Sidebar: cabeçalho de grupo (sanfona) ---------- */
 .tree .group-head { display: flex; align-items: center; gap: 6px; padding: 5px 8px; cursor: pointer;
