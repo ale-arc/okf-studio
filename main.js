@@ -9,6 +9,7 @@ const fsp = fs.promises;
 const { createWatcher } = require('./watcher.js');
 const { registerGitHandlers } = require('./git.js');
 const { registerTemplateHandlers } = require('./templates.js');
+const { registerPdfHandlers } = require('./convert-pdf.js');
 
 let mainWindow = null;
 let manualUpdateCheck = false; // true when the user clicked "Verificar atualizações"
@@ -74,6 +75,11 @@ function buildMenu() {
           label: 'Salvar',
           accelerator: 'CmdOrCtrl+S',
           click: () => mainWindow.webContents.send('menu:save')
+        },
+        {
+          label: 'Exportar como PDF…',
+          accelerator: 'CmdOrCtrl+E',
+          click: () => mainWindow.webContents.send('menu:export-pdf')
         },
         { type: 'separator' },
         { role: 'quit', label: 'Sair' }
@@ -379,6 +385,7 @@ ipcMain.handle('update:install', async () => { setImmediate(() => autoUpdater.qu
 
 registerGitHandlers(ipcMain, () => currentRoot);
 registerTemplateHandlers(ipcMain);
+registerPdfHandlers(ipcMain, () => currentRoot);
 
 app.whenReady().then(() => {
   createWindow();
