@@ -8,6 +8,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const { createWatcher } = require('./watcher.js');
 const { registerGitHandlers } = require('./git.js');
+const { registerTemplateHandlers } = require('./templates.js');
 
 let mainWindow = null;
 let manualUpdateCheck = false; // true when the user clicked "Verificar atualizações"
@@ -64,6 +65,10 @@ function buildMenu() {
           label: 'Novo conceito…',
           accelerator: 'CmdOrCtrl+N',
           click: () => mainWindow.webContents.send('menu:new-concept')
+        },
+        {
+          label: 'Modelos…',
+          click: () => mainWindow.webContents.send('menu:templates')
         },
         {
           label: 'Salvar',
@@ -373,6 +378,7 @@ ipcMain.handle('update:check', async () => { checkForUpdates(true); return true;
 ipcMain.handle('update:install', async () => { setImmediate(() => autoUpdater.quitAndInstall()); return true; });
 
 registerGitHandlers(ipcMain, () => currentRoot);
+registerTemplateHandlers(ipcMain);
 
 app.whenReady().then(() => {
   createWindow();

@@ -26,11 +26,18 @@ contextBridge.exposeInMainWorld('okf', {
     push: () => ipcRenderer.invoke('git:push'),
     init: () => ipcRenderer.invoke('git:init')
   },
+  templates: {
+    list: () => ipcRenderer.invoke('templates:list'),
+    save: (payload) => ipcRenderer.invoke('templates:save', payload),
+    remove: (payload) => ipcRenderer.invoke('templates:delete', payload),
+    restoreDefaults: () => ipcRenderer.invoke('templates:restoreDefaults'),
+    dir: () => ipcRenderer.invoke('templates:dir')
+  },
   onMenu: (channel, cb) => {
     const valid = [
       'menu:open-folder', 'menu:open-sample', 'menu:new-concept', 'menu:new-library',
       'menu:save', 'menu:reload', 'menu:validate', 'menu:graph', 'menu:about', 'menu:manual',
-      'menu:rebuild-indexes'
+      'menu:rebuild-indexes', 'menu:templates'
     ];
     if (valid.includes(channel)) ipcRenderer.on(channel, () => cb());
   }

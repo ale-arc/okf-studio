@@ -53,6 +53,7 @@
       "preload.js",
       "watcher.js",
       "git.js",
+      "templates.js",
       "renderer/**/*",
       "renderer/vendor/**/*",
       "build/icon.png",
