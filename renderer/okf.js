@@ -436,7 +436,7 @@
       return groups.get(key);
     };
     for (const d of list) {
-      const f = parse(d.content).frontmatter || {};
+      const f = parse(d.content == null ? '' : d.content).frontmatter || {};
       const reserved = isReserved(d.relPath);
       const base = d.relPath.split('/').pop().replace(/\.md$/i, '');
       const title = (f.title != null && String(f.title).trim() !== '') ? String(f.title) : base;
