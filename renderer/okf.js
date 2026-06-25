@@ -192,21 +192,21 @@
       d.relPath.startsWith(pre) && d.relPath.slice(pre.length).indexOf('/') < 0);
     return sortedBullets(items).join('\n');
   }
+  function typeOfDoc(doc) {
+    const f = parse(doc.content).frontmatter;
+    return (f && f.type != null && String(f.type).trim() !== '') ? String(f.type).trim() : 'Sem tipo';
+  }
   function rootListing(docs) {
     const concepts = docs.filter(d => !isReserved(d.relPath));
-    const rootItems = concepts.filter(d => d.relPath.indexOf('/') < 0);
-    const byTop = new Map();
+    const byType = new Map();
     for (const d of concepts) {
-      const i = d.relPath.indexOf('/');
-      if (i < 0) continue;
-      const top = d.relPath.slice(0, i);
-      if (!byTop.has(top)) byTop.set(top, []);
-      byTop.get(top).push(d);
+      const t = typeOfDoc(d);
+      if (!byType.has(t)) byType.set(t, []);
+      byType.get(t).push(d);
     }
     const parts = [];
-    if (rootItems.length) parts.push(sortedBullets(rootItems).join('\n'));
-    for (const top of [...byTop.keys()].sort()) {
-      parts.push('## ' + headingFor(top) + '\n' + sortedBullets(byTop.get(top)).join('\n'));
+    for (const t of [...byType.keys()].sort((a, b) => a.localeCompare(b))) {
+      parts.push('## ' + t + '\n' + sortedBullets(byType.get(t)).join('\n'));
     }
     return parts.join('\n\n');
   }
@@ -296,7 +296,6 @@
     const fromId = conceptId(fromRel);
     const out = [];
     for (const d of docs) {
-      if (d.relPath.split('/').pop().toLowerCase() === 'index.md') continue; // index é reconstruído à parte
       const p = parse(d.content);
       let changed = false;
       const body = p.body.replace(RENAME_LINK_RE, (full, text, target) => {
@@ -362,7 +361,63 @@
     return content + sep + MARK_START + inner + MARK_END + '\n';
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles };
+  // ---- Convenção "tipo é a pasta" ----
+  function slugify(s) {
+    return String(s == null ? '' : s)
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+  function folderForType(type) { return slugify(type) || 'sem-tipo'; }
+  function pathForConcept(type, title, taken) {
+    const dir = folderForType(type);
+    const base = slugify(title) || 'conceito';
+    let name = base, k = 2;
+    const has = (n) => (taken && (taken.has ? taken.has(dir + '/' + n + '.md') : false));
+    while (has(name)) { name = base + '-' + (k++); }
+    return dir + '/' + name + '.md';
+  }
+  function typeLabelLookup(docs) {
+    const map = new Map();
+    for (const d of docs) {
+      if (isReserved(d.relPath)) continue;
+      const t = parse(d.content).frontmatter.type;
+      if (t == null || String(t).trim() === '') continue;
+      const label = String(t).trim();
+      const slug = folderForType(label);
+      if (!map.has(slug)) map.set(slug, label);
+    }
+    return map;
+  }
+  function canonicalType(input, docs) {
+    const label = String(input == null ? '' : input).trim();
+    const existing = typeLabelLookup(docs).get(folderForType(label));
+    return existing || label;
+  }
+  function moveTargetForType(relPath, type) {
+    const base = relPath.split('/').pop();
+    return folderForType(type) + '/' + base;
+  }
+  function planReorg(docs) {
+    const taken = new Set(docs.map(d => d.relPath));
+    const out = [];
+    for (const d of docs) {
+      if (isReserved(d.relPath)) continue;
+      const f = parse(d.content).frontmatter;
+      const type = (f && f.type != null) ? String(f.type).trim() : '';
+      if (!type) continue;
+      const dir = folderForType(type);
+      const curDir = d.relPath.includes('/') ? d.relPath.replace(/\/[^/]*$/, '') : '';
+      if (curDir === dir) continue; // já no lugar
+      let to = dir + '/' + d.relPath.split('/').pop();
+      let k = 2;
+      while (taken.has(to)) { to = dir + '/' + d.relPath.split('/').pop().replace(/\.md$/i, '') + '-' + (k++) + '.md'; }
+      taken.add(to);
+      out.push({ from: d.relPath, to, title: (f && f.title) ? String(f.title) : d.relPath.split('/').pop().replace(/\.md$/i, '') });
+    }
+    return out;
+  }
+
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg };
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,
