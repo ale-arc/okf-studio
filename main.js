@@ -54,6 +54,11 @@ function buildMenu() {
           label: 'Abrir biblioteca de exemplo',
           click: () => mainWindow.webContents.send('menu:open-sample')
         },
+        {
+          label: 'Nova biblioteca…',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => mainWindow.webContents.send('menu:new-library')
+        },
         { type: 'separator' },
         {
           label: 'Novo conceito…',
@@ -74,6 +79,7 @@ function buildMenu() {
       submenu: [
         { label: 'Recarregar biblioteca', accelerator: 'CmdOrCtrl+R', click: () => mainWindow.webContents.send('menu:reload') },
         { label: 'Validar conformidade OKF', click: () => mainWindow.webContents.send('menu:validate') },
+        { label: 'Reconstruir índices', click: () => mainWindow.webContents.send('menu:rebuild-indexes') },
         { label: 'Grafo de relacionamentos', click: () => mainWindow.webContents.send('menu:graph') },
         { type: 'separator' },
         { role: 'toggleDevTools', label: 'Ferramentas de desenvolvedor' },
@@ -293,6 +299,37 @@ ipcMain.handle('fs:applyOps', async (_e, { root, ops }) => {
   } finally {
     libWatcher.resume();
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('bundle:changed');
+  }
+});
+
+function claudeTemplatePath() {
+  const packaged = path.join(process.resourcesPath || '', 'okf-template', 'CLAUDE.md');
+  if (fs.existsSync(packaged)) return packaged;
+  return path.join(__dirname, 'tools', 'okf-template', 'CLAUDE.md');
+}
+
+ipcMain.handle('dialog:newLibrary', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Escolha (ou crie) a pasta da nova biblioteca OKF',
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  return res.filePaths[0];
+});
+
+ipcMain.handle('library:create', async (_e, { dir, files }) => {
+  try {
+    const conflicts = ['index.md', 'log.md', 'CLAUDE.md'].filter(f => fs.existsSync(path.join(dir, f)));
+    if (conflicts.length) return { ok: false, error: 'A pasta já contém: ' + conflicts.join(', ') };
+    for (const f of (files || [])) {
+      const target = safeJoin(dir, f.relPath);
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.writeFile(target, f.content, 'utf8');
+    }
+    await fsp.copyFile(claudeTemplatePath(), path.join(dir, 'CLAUDE.md'));
+    return { ok: true, root: dir };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
   }
 });
 

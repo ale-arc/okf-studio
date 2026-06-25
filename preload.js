@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('okf', {
   createFile: (payload) => ipcRenderer.invoke('file:create', payload),
   deleteFile: (payload) => ipcRenderer.invoke('file:delete', payload),
   applyOps: (payload) => ipcRenderer.invoke('fs:applyOps', payload),
+  newLibraryDialog: () => ipcRenderer.invoke('dialog:newLibrary'),
+  createLibrary: (payload) => ipcRenderer.invoke('library:create', payload),
   confirm: (payload) => ipcRenderer.invoke('app:confirm', payload),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
   getVersion: () => ipcRenderer.invoke('app:version'),
@@ -26,8 +28,9 @@ contextBridge.exposeInMainWorld('okf', {
   },
   onMenu: (channel, cb) => {
     const valid = [
-      'menu:open-folder', 'menu:open-sample', 'menu:new-concept',
-      'menu:save', 'menu:reload', 'menu:validate', 'menu:graph', 'menu:about', 'menu:manual'
+      'menu:open-folder', 'menu:open-sample', 'menu:new-concept', 'menu:new-library',
+      'menu:save', 'menu:reload', 'menu:validate', 'menu:graph', 'menu:about', 'menu:manual',
+      'menu:rebuild-indexes'
     ];
     if (valid.includes(channel)) ipcRenderer.on(channel, () => cb());
   }

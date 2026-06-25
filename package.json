@@ -61,6 +61,10 @@
       {
         "from": "sample-library",
         "to": "sample-library"
+      },
+      {
+        "from": "tools/okf-template",
+        "to": "okf-template"
       }
     ],
     "win": {
