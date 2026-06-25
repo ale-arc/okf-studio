@@ -721,6 +721,7 @@ async function enterEdit() {
   }
 
   $('editor-toolbar').classList.remove('hidden');
+  refreshTypeDatalist(); // popula o datalist com os tipos existentes (como em openModal)
   $('e-type').value = f.type || '';
   $('e-title').value = f.title || '';
   $('e-description').value = f.description || '';

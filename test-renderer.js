@@ -160,6 +160,33 @@ app.whenReady().then(async () => {
   const okGraph = g6 && g6.loaded && g6.rendered;
   console.log('  G6 graph:', JSON.stringify(g6));
 
+  // Regressão: o datalist de tipos deve ser populado também ao ENTRAR EM EDIÇÃO,
+  // não só ao criar um conceito novo. (Bug: enterEdit não chamava refreshTypeDatalist.)
+  const datalist = await win.webContents.executeJavaScript(`(() => {
+    state.root = '/fake';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\n---\\n# A\\n' },
+      { relPath: 'processo/b.md', name: 'b.md', reserved: false, content: '---\\ntype: Processo\\ntitle: B\\n---\\n# B\\n' }
+    ];
+    indexDocs();
+    const dl = document.getElementById('type-options');
+    const savedEditor = window.OKFEditor;
+    window.OKFEditor = null; // força modo Código no enterEdit (evita o milkdown no teste)
+    dl.innerHTML = '';
+    state.current = 'projeto/a.md';
+    try { enterEdit(); } catch (e) {}
+    const edit = dl.options.length;
+    try { cancelEdit(); } catch (e) {}
+    window.OKFEditor = savedEditor;
+    dl.innerHTML = '';
+    openModal(); // controle: criar conceito já funcionava
+    const novo = dl.options.length;
+    closeModal();
+    return { edit, novo };
+  })()`);
+  const okDatalist = !!datalist && datalist.edit >= 2 && datalist.novo >= 2;
+  console.log('  datalist tipos (edicao/novo):', JSON.stringify(datalist));
+
   const okGlobals = ['marked','OKF','G6','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
   const okBridge = result.okfBridge === 'object' && result.updateBridge === true && result.claudeBridge === true && result.gitBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
@@ -178,8 +205,9 @@ app.whenReady().then(async () => {
   console.log('  window.OKFEditor presente:', result.editorGlobal);
   console.log('  paleta + modelos:', result.paletteUI, templatesCheck);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && cspViolations.length === 0
+  console.log('  datalist tipos populado (edição + novo):', okDatalist);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && cspViolations.length === 0 ? 0 : 1);
 });

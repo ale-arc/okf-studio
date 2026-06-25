@@ -54,6 +54,7 @@
     const bytes = new Uint8Array(file.bytes);
 
     $('import-modal').classList.remove('hidden');
+    refreshTypeDatalist(); // popula o datalist com os tipos existentes (como em openModal)
     $('import-md').value = '';
     if (importEditor) { await importEditor.destroy(); importEditor = null; }
     $('import-save').disabled = true;
