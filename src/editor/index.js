@@ -13,6 +13,7 @@ import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { clipboard } from '@milkdown/plugin-clipboard';
 import { slashFactory, SlashProvider } from '@milkdown/plugin-slash';
 import { callCommand, getMarkdown as getMd, replaceAll, insert } from '@milkdown/utils';
+import { tableToolbar } from './table-toolbar.js';
 
 const COMMANDS = {
   bold: [toggleStrongCommand], italic: [toggleEmphasisCommand], strike: [toggleStrikethroughCommand],
@@ -67,7 +68,7 @@ export async function createInstance(container, markdown, opts = {}) {
         }
       });
     })
-    .use(commonmark).use(gfm).use(history).use(listener).use(clipboard).use(slash).create();
+    .use(commonmark).use(gfm).use(history).use(listener).use(clipboard).use(slash).use(tableToolbar).create();
 
   function run(name) { if (COMMANDS[name]) { const [c, p] = COMMANDS[name]; editor.action(callCommand(c.key, p)); } }
   function taskList() { editor.action(insert('- [ ] ')); }
@@ -75,6 +76,7 @@ export async function createInstance(container, markdown, opts = {}) {
   return {
     getMarkdown: () => editor.action(getMd()),
     setMarkdown: (md) => editor.action(replaceAll(md || '')),
+    getView: () => editor.ctx.get(editorViewCtx),
     runCommand: run,
     taskList,
     link: (href) => { if (href) editor.action(callCommand(toggleLinkCommand.key, { href })); },
@@ -97,6 +99,7 @@ export async function createInstance(container, markdown, opts = {}) {
 let def = null;
 export async function create(container, markdown, opts = {}) { await destroy(); def = await createInstance(container, markdown, opts); return def; }
 export function getMarkdown() { return def ? def.getMarkdown() : ''; }
+export function getView() { return def ? def.getView() : null; }
 export function setMarkdown(md) { if (def) def.setMarkdown(md); }
 export function runCommand(name) { if (def) def.runCommand(name); }
 export function taskList() { if (def) def.taskList(); }

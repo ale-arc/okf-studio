@@ -152,7 +152,14 @@ button.update:disabled{opacity:1;color:#06281c}
 .editor-toolbar .tb-concept{margin-left:auto;background:var(--good);color:#06281c;
   border-color:var(--good);font-weight:600}
 .milkdown-host{border:1px solid var(--line);border-radius:0 0 8px 8px;min-height:42vh;
-  padding:6px 12px;background:var(--bg);overflow:auto}
+  padding:6px 12px;background:var(--bg);overflow:auto;position:relative}
+.okf-table-toolbar{position:absolute;z-index:20;display:flex;gap:4px;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 6px;
+  box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.okf-table-toolbar button{font-size:12px;line-height:1;padding:3px 7px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:6px}
+.okf-table-toolbar button:hover{border-color:var(--accent);background:var(--hover)}
+.okf-table-toolbar .tb-sep{width:1px;height:16px;background:var(--line);margin:0 2px}
 .milkdown-host .ProseMirror{outline:none;line-height:1.6;min-height:38vh}
 .milkdown-host .ProseMirror h1,.milkdown-host .ProseMirror h2,.milkdown-host .ProseMirror h3{
   border-bottom:1px solid var(--line);padding-bottom:4px}
