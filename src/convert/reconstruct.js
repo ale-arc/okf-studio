@@ -239,4 +239,51 @@ function reconstructMarkdown(items) {
   return out.join('\n\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
-module.exports = { reconstructMarkdown, groupLines, isTableStrict, splitColumns };
+function normHF(s) { return String(s).toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim(); }
+
+const ROMAN = /^m{0,3}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$/;
+function isPageNumKey(k) {
+  if (!k) return false;
+  if (k === '#') return true;                 // só dígitos
+  if (/^p[áa]gina #$/.test(k)) return true;   // "página 3"
+  if (ROMAN.test(k)) return true;             // numeração romana (i, ii, iv, ...)
+  return false;
+}
+
+// pages: [{ items, height }]. Remove linhas repetidas nas faixas de topo/rodapé
+// e números de página solitários. Devolve as páginas com itens filtrados.
+function stripRunningHeadersFooters(pages) {
+  const n = (pages || []).length;
+  if (n < 2) return pages || [];
+  const bandLines = pages.map(pg => {
+    const h = pg.height || (pg.items.length ? Math.max.apply(null, pg.items.map(i => i.y)) : 0);
+    const top = h * 0.12, bot = h * 0.88;
+    return groupLines(pg.items).filter(l => l.y <= top || l.y >= bot);
+  });
+  const freq = new Map();
+  for (const lines of bandLines) {
+    const seen = new Set();
+    for (const l of lines) {
+      const key = normHF(lineText(l));
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      freq.set(key, (freq.get(key) || 0) + 1);
+    }
+  }
+  const threshold = Math.max(2, Math.ceil(n * 0.6));
+  const repeated = new Set();
+  for (const [k, c] of freq) if (c >= threshold) repeated.add(k);
+  return pages.map(pg => {
+    const h = pg.height || (pg.items.length ? Math.max.apply(null, pg.items.map(i => i.y)) : 0);
+    const top = h * 0.12, bot = h * 0.88;
+    const remove = new Set();
+    for (const l of groupLines(pg.items)) {
+      if (!(l.y <= top || l.y >= bot)) continue;
+      const key = normHF(lineText(l));
+      if (repeated.has(key) || isPageNumKey(key)) for (const it of l.items) remove.add(it);
+    }
+    return { items: pg.items.filter(it => !remove.has(it)), height: pg.height };
+  });
+}
+
+module.exports = { reconstructMarkdown, groupLines, isTableStrict, splitColumns, stripRunningHeadersFooters };

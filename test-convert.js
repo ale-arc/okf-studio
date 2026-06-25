@@ -155,6 +155,30 @@ const RC4 = require('./src/convert/reconstruct.js');
   has(RC4.reconstructMarkdown(tbl3x2), '| Nome | Idade |', 'colunas: tabela 3x2 sobrevive como tabela no pipeline');
 }
 
+// ---- R5: cabeçalho/rodapé ----
+const RC5 = require('./src/convert/reconstruct.js');
+{
+  function page(items, height) { return { items, height }; }
+  const mk = (n) => page([ it('Relatório X', 50, 5, 10), it('Conteúdo ' + n, 50, 50, 12) ], 100);
+  const stripped = RC5.stripRunningHeadersFooters([ mk(1), mk(2), mk(3) ]);
+  const allText = stripped.map(p => p.items.map(i => i.str).join(' ')).join(' | ');
+  ok(!allText.includes('Relatório X'), 'head/foot: remove cabeçalho repetido');
+  ok(allText.includes('Conteúdo 1') && allText.includes('Conteúdo 3'), 'head/foot: mantém conteúdo do miolo');
+
+  const pn = [
+    page([ it('3', 50, 95, 10), it('miolo a', 50, 50, 12) ], 100),
+    page([ it('4', 50, 95, 10), it('miolo b', 50, 50, 12) ], 100)
+  ];
+  const s2 = RC5.stripRunningHeadersFooters(pn);
+  const t2 = s2.map(p => p.items.map(i => i.str).join(' ')).join(' | ');
+  ok(!/\b[34]\b/.test(t2) && t2.includes('miolo a'), 'head/foot: remove número de página solitário');
+
+  const once = [ page([ it('Aviso único', 50, 5, 10), it('corpo', 50, 50, 12) ], 100),
+                 page([ it('corpo só', 50, 50, 12) ], 100) ];
+  const s3 = RC5.stripRunningHeadersFooters(once);
+  ok(s3.map(p => p.items.map(i => i.str).join(' ')).join(' ').includes('Aviso único'), 'head/foot: mantém banda não repetida');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');
