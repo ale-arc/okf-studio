@@ -211,6 +211,30 @@
     return parts.join('\n\n');
   }
 
+  function appendLog(content, dateStr, entry) {
+    const bullet = '* ' + entry;
+    const dateHdr = '## ' + dateStr;
+    const lines = (content || '').split('\n');
+    const idx = lines.findIndex(l => l.trim() === dateHdr);
+    if (idx >= 0) {
+      let end = lines.length;
+      for (let i = idx + 1; i < lines.length; i++) { if (/^##\s/.test(lines[i])) { end = i; break; } }
+      let ins = end;
+      while (ins > idx + 1 && lines[ins - 1].trim() === '') ins--;
+      lines.splice(ins, 0, bullet);
+      return lines.join('\n');
+    }
+    const titleIdx = lines.findIndex(l => /^#\s/.test(l));
+    const block = [dateHdr, bullet];
+    if (titleIdx >= 0) {
+      let ins = titleIdx + 1;
+      if (lines[ins] !== undefined && lines[ins].trim() === '') ins++;
+      lines.splice(ins, 0, '', ...block);
+      return lines.join('\n').replace(/\n{3,}/g, '\n\n');
+    }
+    return (block.join('\n') + '\n\n' + (content || '')).replace(/\n{3,}/g, '\n\n');
+  }
+
   function mergeManagedBlock(content, listing) {
     const inner = '\n' + (listing ? listing + '\n' : '');
     const s = content.indexOf(MARK_START);
@@ -222,7 +246,7 @@
     return content + sep + MARK_START + inner + MARK_END + '\n';
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock };
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog };
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,

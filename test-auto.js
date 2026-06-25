@@ -28,6 +28,19 @@ eq(A.bulletFor(doc('projetos/atlas.md', { type: 'Projeto', title: 'Projeto Atlas
    '* [Projeto Atlas](/projetos/atlas.md) - Migração.', 'bulletFor com descrição');
 eq(A.bulletFor(doc('a.md', { type: 'X', title: 'A' })), '* [A](/a.md)', 'bulletFor sem descrição');
 
+// ---- Task 4: log ----
+const log0 = '# Histórico de Atualizações\n';
+const log1 = A.appendLog(log0, '2026-06-25', '**Criação**: [X](/x.md).');
+ok(log1.includes('## 2026-06-25\n* **Criação**: [X](/x.md).'), 'cria seção do dia');
+ok(log1.indexOf('# Histórico') < log1.indexOf('## 2026-06-25'), 'título permanece no topo');
+
+const log2 = A.appendLog(log1, '2026-06-25', '**Exclusão**: removido `y.md`.');
+ok(log2.match(/## 2026-06-25/g).length === 1, 'não duplica a seção do dia');
+ok(log2.indexOf('Criação') < log2.indexOf('Exclusão'), 'apenda bullet ao dia existente');
+
+const log3 = A.appendLog(log1, '2026-06-26', '**Criação**: [Z](/z.md).');
+ok(log3.indexOf('## 2026-06-26') < log3.indexOf('## 2026-06-25'), 'dia novo entra no topo (mais recente primeiro)');
+
 // ---- Task 3: bloco gerenciado ----
 const semMarcadores = '# Projetos\n\nTexto humano.\n';
 const merged1 = A.mergeManagedBlock(semMarcadores, '* [X](/projetos/x.md)');
