@@ -128,8 +128,9 @@ button.update:disabled{opacity:1;color:#06281c}
 
 /* edit */
 .edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.edit-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.edit-grid label{display:block;font-size:12px;color:var(--muted)}
 .edit-grid label.full{grid-column:1 / -1}
+.edit-grid label>input{display:block;width:100%;margin-top:4px}
 .edit-grid input{font-size:14px;color:var(--text)}
 .req{color:var(--bad)}
 #extra-fm{margin:14px 0 4px}
@@ -233,9 +234,9 @@ button.update:disabled{opacity:1;color:#06281c}
 .modal-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
   padding:22px;width:440px;max-width:92vw}
 .modal-card h2{margin:0 0 14px}
-.modal-card label{display:flex;flex-direction:column;gap:5px;font-size:12px;
-  color:var(--muted);margin-bottom:12px}
-.modal-card input{font-size:14px;color:var(--text)}
+.modal-card label{display:block;font-size:12px;color:var(--muted);margin-bottom:12px}
+.modal-card label>input,.modal-card label>select{display:block;width:100%;margin-top:5px}
+.modal-card input,.modal-card select{font-size:14px;color:var(--text)}
 .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:8px}
 
 .cm-list{max-height:46vh;overflow:auto;margin:10px 0;border:1px solid var(--line);border-radius:8px}
