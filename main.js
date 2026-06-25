@@ -298,7 +298,6 @@ ipcMain.handle('fs:applyOps', async (_e, { root, ops }) => {
     return { ok: false, applied, error: String((e && e.message) || e) };
   } finally {
     libWatcher.resume();
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('bundle:changed');
   }
 });
 

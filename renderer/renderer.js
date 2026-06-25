@@ -70,12 +70,19 @@ function indexContentFor(docs, dir) {
 // Ops para (re)escrever todos os index.md a partir de um conjunto de docs.
 function indexOpsFrom(docs) {
   const ops = [];
-  for (const dir of indexDirs(docs)) {
+  const dirs = indexDirs(docs);
+  for (const dir of dirs) {
     const rel = dir ? dir + '/index.md' : 'index.md';
     const content = indexContentFor(docs, dir);
     const existing = docs.find(d => d.relPath === rel);
     if (!existing) ops.push({ op: 'create', relPath: rel, content });
     else if (existing.content !== content) ops.push({ op: 'write', relPath: rel, content });
+  }
+  // Remove index.md de subdiretórios que não contêm mais nenhum conceito.
+  const keep = new Set(dirs.map(d => (d ? d + '/index.md' : 'index.md')));
+  for (const d of docs) {
+    if (d.relPath.split('/').pop().toLowerCase() !== 'index.md') continue;
+    if (!keep.has(d.relPath)) ops.push({ op: 'delete', relPath: d.relPath });
   }
   return ops;
 }
@@ -97,6 +104,7 @@ async function applyOpsAndRefresh(ops, selectRel) {
     return false;
   }
   await refreshFromDisk(selectRel);
+  if (!$('git-view').classList.contains('hidden')) refreshGit();
   return true;
 }
 
