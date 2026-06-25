@@ -211,6 +211,50 @@
     return parts.join('\n\n');
   }
 
+  function relativePath(fromDir, toRel) {
+    const from = fromDir ? fromDir.split('/') : [];
+    const to = toRel.split('/');
+    const toFile = to.pop();
+    let i = 0;
+    while (i < from.length && i < to.length && from[i] === to[i]) i++;
+    const segs = from.slice(i).map(() => '..').concat(to.slice(i), [toFile]);
+    return segs.join('/') || toFile;
+  }
+
+  const RENAME_LINK_RE = /\[([^\]]*)\]\(([^)\s]+)\)/g;
+  function splitAnchor(t) { const i = t.indexOf('#'); return i >= 0 ? [t.slice(0, i), t.slice(i + 1)] : [t, '']; }
+
+  function rewriteRenameLinks(docs, fromRel, toRel) {
+    const fromId = conceptId(fromRel);
+    const out = [];
+    for (const d of docs) {
+      if (d.relPath.split('/').pop().toLowerCase() === 'index.md') continue; // index é reconstruído à parte
+      const p = parse(d.content);
+      let changed = false;
+      const body = p.body.replace(RENAME_LINK_RE, (full, text, target) => {
+        if (isExternal(target) || target.startsWith('#')) return full;
+        const [path0, anchor] = splitAnchor(target);
+        if (d.relPath === fromRel) {
+          // arquivo movido: recalcula seus próprios links relativos (a base mudou)
+          if (target.startsWith('/')) return full;
+          const id = resolveTarget(path0, fromRel);
+          if (!id) return full;
+          const nt = relativePath(dirOf(toRel), id + '.md') + (anchor ? '#' + anchor : '');
+          if (nt !== target) changed = true;
+          return '[' + text + '](' + nt + ')';
+        }
+        const id = resolveTarget(path0, d.relPath);
+        if (id !== fromId) return full;
+        let nt = target.startsWith('/') ? '/' + toRel : relativePath(dirOf(d.relPath), toRel);
+        nt += anchor ? '#' + anchor : '';
+        changed = true;
+        return '[' + text + '](' + nt + ')';
+      });
+      if (changed) out.push({ relPath: d.relPath, newContent: serialize(p.frontmatter, body) });
+    }
+    return out;
+  }
+
   function appendLog(content, dateStr, entry) {
     const bullet = '* ' + entry;
     const dateHdr = '## ' + dateStr;
@@ -246,7 +290,7 @@
     return content + sep + MARK_START + inner + MARK_END + '\n';
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog };
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks };
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,

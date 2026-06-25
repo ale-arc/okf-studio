@@ -28,6 +28,31 @@ eq(A.bulletFor(doc('projetos/atlas.md', { type: 'Projeto', title: 'Projeto Atlas
    '* [Projeto Atlas](/projetos/atlas.md) - Migração.', 'bulletFor com descrição');
 eq(A.bulletFor(doc('a.md', { type: 'X', title: 'A' })), '* [A](/a.md)', 'bulletFor sem descrição');
 
+// ---- Task 5: relativePath + rename ----
+eq(A.relativePath('', 'projetos/x.md'), 'projetos/x.md', 'relativePath da raiz');
+eq(A.relativePath('projetos', 'processos/x.md'), '../processos/x.md', 'relativePath entre pastas');
+eq(A.relativePath('projetos', 'projetos/y.md'), 'y.md', 'relativePath mesma pasta');
+
+const docsT5 = [
+  doc('projetos/atlas.md', { type: 'Projeto', title: 'Atlas' },
+      'Ver [abs](/processos/inc.md) e [rel](../processos/inc.md) e [anc](/processos/inc.md#sec).'),
+  doc('processos/inc.md', { type: 'Processo', title: 'Inc' },
+      'Liga em [atlas](/projetos/atlas.md).'),
+  doc('log.md', {}, '# Histórico\n\n## 2026-06-24\n* **Criação**: [inc](/processos/inc.md).'),
+];
+const changes = A.rewriteRenameLinks(docsT5, 'processos/inc.md', 'ops/incidente.md');
+
+const atlas = changes.find(c => c.relPath === 'projetos/atlas.md');
+ok(atlas && atlas.newContent.includes('[abs](/ops/incidente.md)'), 'reescreve link absoluto');
+ok(atlas && atlas.newContent.includes('[rel](../ops/incidente.md)'), 'reescreve link relativo preservando estilo');
+ok(atlas && atlas.newContent.includes('[anc](/ops/incidente.md#sec)'), 'preserva âncora');
+
+const moved = changes.find(c => c.relPath === 'processos/inc.md');
+ok(!moved || moved.newContent.includes('[atlas](/projetos/atlas.md)'), 'link absoluto de saída do arquivo movido permanece');
+
+const logc = changes.find(c => c.relPath === 'log.md');
+ok(logc && logc.newContent.includes('[inc](/ops/incidente.md)'), 'reescreve links no log.md');
+
 // ---- Task 4: log ----
 const log0 = '# Histórico de Atualizações\n';
 const log1 = A.appendLog(log0, '2026-06-25', '**Criação**: [X](/x.md).');
