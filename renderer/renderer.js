@@ -895,6 +895,7 @@ function paletteActions() {
     { label: 'Claude Code (terminal)', run: openClaude, needsLib: true },
     { label: 'Recarregar biblioteca', run: reload, needsLib: true },
     { label: 'Reconstruir índices', run: rebuildIndexes, needsLib: true },
+    { label: 'Gerenciar modelos', run: openTemplates, needsLib: false },
     { label: autoIndexEnabled() ? 'Índices automáticos: DESLIGAR' : 'Índices automáticos: LIGAR',
       run: () => { setAutoIndex(!autoIndexEnabled()); toast('Índices automáticos: ' + (autoIndexEnabled() ? 'ligados' : 'desligados'), 'good'); }, needsLib: false },
     { label: 'Manual do OKF Studio', run: showManual, needsLib: false },
@@ -1008,6 +1009,82 @@ async function rebuildIndexes() {
   if (!ok) return;
   const done = await applyOpsAndRefresh(ops, state.current);
   if (done) toast('Índices reconstruídos (' + ops.length + ' arquivo(s)).', 'good');
+}
+
+/* ---------- Diálogo de Modelos ---------- */
+let tplSelected = null; // nome do modelo carregado no formulário (null = novo)
+async function openTemplates() {
+  await loadTemplates();
+  clearTplForm();
+  try { $('tpl-dir').textContent = 'Pasta: ' + await window.okf.templates.dir(); } catch (e) {}
+  $('templates-modal').classList.remove('hidden');
+  $('tpl-name').focus();
+}
+function closeTemplates() { $('templates-modal').classList.add('hidden'); }
+function renderTplList() {
+  const list = $('tpl-list');
+  list.innerHTML = state.templates.map(t =>
+    `<div class="tpl-item${t.name === tplSelected ? ' sel' : ''}" data-name="${escapeAttr(t.name)}">${escapeHtml(t.name)}</div>`
+  ).join('') || '<div class="tpl-item">Nenhum modelo.</div>';
+  list.querySelectorAll('.tpl-item[data-name]').forEach(el =>
+    el.addEventListener('click', () => loadTplToForm(el.dataset.name)));
+}
+function clearTplForm() {
+  tplSelected = null;
+  ['tpl-name', 'tpl-type', 'tpl-description', 'tpl-tags', 'tpl-body'].forEach(id => $(id).value = '');
+  renderTplList();
+  $('tpl-name').focus();
+}
+function loadTplToForm(name) {
+  const t = state.templates.find(x => x.name === name);
+  if (!t) return;
+  tplSelected = name;
+  $('tpl-name').value = t.name;
+  $('tpl-type').value = t.type || '';
+  $('tpl-description').value = t.description || '';
+  $('tpl-tags').value = (t.tags || []).join(', ');
+  $('tpl-body').value = t.body || '';
+  renderTplList();
+}
+function refreshTemplateSelect() {
+  if ($('modal').classList.contains('hidden')) return;
+  const tplSel = $('m-template');
+  const cur = tplSel.value;
+  tplSel.innerHTML = state.templates.map(t => `<option>${escapeHtml(t.name)}</option>`).join('');
+  if (state.templates.some(t => t.name === cur)) tplSel.value = cur;
+  else tplSel.value = state.templates.some(t => t.name === 'Em branco') ? 'Em branco'
+    : (state.templates[0] ? state.templates[0].name : '');
+  applyTemplateToForm(tplSel.value);
+}
+async function saveTpl() {
+  const name = $('tpl-name').value.trim();
+  if (!name) { toast('Informe o nome do modelo.', 'bad'); return; }
+  if (/[\/\\:*?"<>|]/.test(name)) { toast('Nome inválido (não use / \\ : * ? " < > |).', 'bad'); return; }
+  const fm = {};
+  const type = $('tpl-type').value.trim(); if (type) fm.type = type;
+  const desc = $('tpl-description').value.trim(); if (desc) fm.description = desc;
+  const tags = $('tpl-tags').value.split(',').map(s => s.trim()).filter(Boolean); if (tags.length) fm.tags = tags;
+  const content = OKF.serialize(fm, $('tpl-body').value);
+  const r = await window.okf.templates.save({ name, content, oldName: tplSelected });
+  if (!r || !r.ok) { toast('Erro: ' + ((r && r.error) || 'desconhecido'), 'bad'); return; }
+  await loadTemplates();
+  tplSelected = name; renderTplList(); refreshTemplateSelect();
+  toast('Modelo salvo: ' + name, 'good');
+}
+async function deleteTpl() {
+  if (!tplSelected) { toast('Selecione um modelo na lista.', 'bad'); return; }
+  const ok = await window.okf.confirm({ message: 'Excluir o modelo?', detail: tplSelected });
+  if (!ok) return;
+  const r = await window.okf.templates.remove({ name: tplSelected });
+  if (!r || !r.ok) { toast('Erro: ' + ((r && r.error) || 'desconhecido'), 'bad'); return; }
+  await loadTemplates(); clearTplForm(); refreshTemplateSelect();
+  toast('Modelo excluído', 'good');
+}
+async function restoreTpl() {
+  const r = await window.okf.templates.restoreDefaults();
+  if (!r || !r.ok) { toast('Erro ao restaurar padrões.', 'bad'); return; }
+  await loadTemplates(); renderTplList(); refreshTemplateSelect();
+  toast((r.created || 0) + ' modelo(s) padrão restaurado(s).', 'good');
 }
 
 /* ---------- Validation ---------- */
@@ -1257,6 +1334,13 @@ function init() {
     $('m-path').value = dir ? dir + '/' + file : file;
   });
   $('m-template').addEventListener('change', () => applyTemplateToForm($('m-template').value));
+  $('m-templates-manage').onclick = openTemplates;
+  $('tpl-new').onclick = clearTplForm;
+  $('tpl-save').onclick = saveTpl;
+  $('tpl-delete').onclick = deleteTpl;
+  $('tpl-restore').onclick = restoreTpl;
+  $('tpl-close').onclick = closeTemplates;
+  window.okf.onMenu('menu:templates', openTemplates);
   $('palette-input').addEventListener('input', (e) => renderPalette(e.target.value));
   $('palette-input').addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); movePalette(1); }
@@ -1291,7 +1375,7 @@ function init() {
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); openPalette(); return; }
-    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); closeRename(); closeTreeMenu(); closeNewLib(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); closeRename(); closeTreeMenu(); closeNewLib(); closeTemplates(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();

@@ -297,3 +297,16 @@ button.update:disabled{opacity:1;color:#06281c}
 .xlink-item:hover { background: var(--hover, rgba(255,255,255,.06)); }
 .xlink-item .grow { flex: 1; }
 .xlink-item code { background: var(--hover, rgba(255,255,255,.08)); padding: 0 4px; border-radius: 4px; }
+
+.m-tpl-row{display:flex;gap:6px;margin-top:5px;align-items:center}
+.m-tpl-row select{flex:1;font-size:14px;color:var(--text)}
+.tpl-card{width:680px}
+.tpl-wrap{display:grid;grid-template-columns:190px 1fr;gap:16px}
+.tpl-list{border:1px solid var(--line);border-radius:8px;max-height:46vh;overflow:auto}
+.tpl-list .tpl-item{padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--line)}
+.tpl-list .tpl-item:last-child{border-bottom:none}
+.tpl-list .tpl-item.sel{background:var(--hover)}
+.tpl-form .full{grid-column:auto}
+.tpl-form textarea{display:block;width:100%;height:180px;margin-top:5px;font-family:Consolas,monospace;font-size:13px;color:var(--text)}
+.tpl-dir{font-size:11px;color:var(--muted);margin:8px 0 6px;word-break:break-all}
+.tpl-actions{align-items:center}

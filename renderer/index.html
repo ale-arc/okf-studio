@@ -205,7 +205,10 @@
       <h2>Novo conceito</h2>
       <div class="modal-grid">
         <label>Modelo
-          <select id="m-template"></select>
+          <span class="m-tpl-row">
+            <select id="m-template"></select>
+            <button id="m-templates-manage" type="button" class="mini" title="Gerenciar modelos">⚙</button>
+          </span>
         </label>
         <label>Categoria
           <select id="m-category"></select>
@@ -259,6 +262,42 @@
       <div class="modal-actions">
         <button id="nl-cancel">Cancelar</button>
         <button id="nl-ok" class="primary">Criar biblioteca</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gerenciar modelos -->
+  <div id="templates-modal" class="modal hidden">
+    <div class="modal-card tpl-card">
+      <h2>Modelos</h2>
+      <div class="tpl-wrap">
+        <div id="tpl-list" class="tpl-list"></div>
+        <div class="tpl-form">
+          <label>Nome
+            <input id="tpl-name" type="text" placeholder="Ex.: Reunião" />
+          </label>
+          <label>Tipo (type)
+            <input id="tpl-type" type="text" placeholder="Ex.: Reunião" />
+          </label>
+          <label>Descrição (description)
+            <input id="tpl-description" type="text" />
+          </label>
+          <label>Tags (separadas por vírgula)
+            <input id="tpl-tags" type="text" placeholder="vendas, receita" />
+          </label>
+          <label class="full">Corpo (markdown)
+            <textarea id="tpl-body" spellcheck="false"></textarea>
+          </label>
+        </div>
+      </div>
+      <p id="tpl-dir" class="tpl-dir"></p>
+      <div class="modal-actions tpl-actions">
+        <button id="tpl-new">Novo</button>
+        <button id="tpl-restore">Restaurar padrões</button>
+        <span class="grow"></span>
+        <button id="tpl-delete" class="danger">Excluir</button>
+        <button id="tpl-save" class="primary">Salvar</button>
+        <button id="tpl-close">Fechar</button>
       </div>
     </div>
   </div>
