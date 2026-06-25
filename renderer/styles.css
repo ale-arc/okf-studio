@@ -237,6 +237,8 @@ button.update:disabled{opacity:1;color:#06281c}
 .modal-card label{display:block;font-size:12px;color:var(--muted);margin-bottom:12px}
 .modal-card label>input,.modal-card label>select{display:block;width:100%;margin-top:5px}
 .modal-card input,.modal-card select{font-size:14px;color:var(--text)}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:14px}
+.modal-grid label.full{grid-column:1 / -1}
 .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:8px}
 
 .cm-list{max-height:46vh;overflow:auto;margin:10px 0;border:1px solid var(--line);border-radius:8px}
