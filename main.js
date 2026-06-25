@@ -8,6 +8,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const { createWatcher } = require('./watcher.js');
 const { registerGitHandlers } = require('./git.js');
+const { registerTemplateHandlers } = require('./templates.js');
 
 let mainWindow = null;
 let manualUpdateCheck = false; // true when the user clicked "Verificar atualizações"
@@ -54,11 +55,20 @@ function buildMenu() {
           label: 'Abrir biblioteca de exemplo',
           click: () => mainWindow.webContents.send('menu:open-sample')
         },
+        {
+          label: 'Nova biblioteca…',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => mainWindow.webContents.send('menu:new-library')
+        },
         { type: 'separator' },
         {
           label: 'Novo conceito…',
           accelerator: 'CmdOrCtrl+N',
           click: () => mainWindow.webContents.send('menu:new-concept')
+        },
+        {
+          label: 'Modelos…',
+          click: () => mainWindow.webContents.send('menu:templates')
         },
         {
           label: 'Salvar',
@@ -74,6 +84,7 @@ function buildMenu() {
       submenu: [
         { label: 'Recarregar biblioteca', accelerator: 'CmdOrCtrl+R', click: () => mainWindow.webContents.send('menu:reload') },
         { label: 'Validar conformidade OKF', click: () => mainWindow.webContents.send('menu:validate') },
+        { label: 'Reconstruir índices', click: () => mainWindow.webContents.send('menu:rebuild-indexes') },
         { label: 'Grafo de relacionamentos', click: () => mainWindow.webContents.send('menu:graph') },
         { type: 'separator' },
         { role: 'toggleDevTools', label: 'Ferramentas de desenvolvedor' },
@@ -270,6 +281,67 @@ ipcMain.handle('file:delete', async (_e, { root, relPath }) => {
   return { ok: true };
 });
 
+ipcMain.handle('fs:applyOps', async (_e, { root, ops }) => {
+  libWatcher.pause();
+  let applied = 0;
+  try {
+    for (const op of (ops || [])) {
+      if (op.op === 'create' || op.op === 'write') {
+        const target = safeJoin(root, op.relPath);
+        if (op.op === 'create' && fs.existsSync(target)) throw new Error('Já existe um arquivo em ' + op.relPath);
+        await fsp.mkdir(path.dirname(target), { recursive: true });
+        await fsp.writeFile(target, op.content, 'utf8');
+      } else if (op.op === 'delete') {
+        await fsp.rm(safeJoin(root, op.relPath), { force: true });
+      } else {
+        throw new Error('Operação desconhecida: ' + op.op);
+      }
+      applied++;
+    }
+    return { ok: true, applied };
+  } catch (e) {
+    return { ok: false, applied, error: String((e && e.message) || e) };
+  } finally {
+    libWatcher.resume();
+  }
+});
+
+function claudeTemplatePath() {
+  const packaged = path.join(process.resourcesPath || '', 'okf-template', 'CLAUDE.md');
+  if (fs.existsSync(packaged)) return packaged;
+  return path.join(__dirname, 'tools', 'okf-template', 'CLAUDE.md');
+}
+
+ipcMain.handle('dialog:newLibrary', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Escolha (ou crie) a pasta da nova biblioteca OKF',
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  return res.filePaths[0];
+});
+
+ipcMain.handle('library:create', async (_e, { dir, files }) => {
+  try {
+    const conflicts = ['index.md', 'log.md', 'CLAUDE.md'].filter(f => fs.existsSync(path.join(dir, f)));
+    if (conflicts.length) return { ok: false, error: 'A pasta já contém: ' + conflicts.join(', ') };
+    libWatcher.pause();
+    try {
+      for (const f of (files || [])) {
+        const target = safeJoin(dir, f.relPath);
+        await fsp.mkdir(path.dirname(target), { recursive: true });
+        await fsp.writeFile(target, f.content, 'utf8');
+      }
+      await fsp.copyFile(claudeTemplatePath(), path.join(dir, 'CLAUDE.md'));
+    } finally {
+      libWatcher.resume();
+    }
+    return { ok: true, root: dir };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+});
+
 ipcMain.handle('app:confirm', async (_e, { message, detail }) => {
   const res = await dialog.showMessageBox(mainWindow, {
     type: 'warning',
@@ -306,6 +378,7 @@ ipcMain.handle('update:check', async () => { checkForUpdates(true); return true;
 ipcMain.handle('update:install', async () => { setImmediate(() => autoUpdater.quitAndInstall()); return true; });
 
 registerGitHandlers(ipcMain, () => currentRoot);
+registerTemplateHandlers(ipcMain);
 
 app.whenReady().then(() => {
   createWindow();

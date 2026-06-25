@@ -51,8 +51,22 @@ arquivos `.md` que você (e agentes de IA como o Claude) podem ler e manter.
   (não só título/tags).
 - **Paleta de comandos** (`Ctrl+P`) — pular para qualquer conceito ou disparar
   ações pelo teclado.
-- **Modelos por tipo** — ao criar um conceito, escolha um modelo (Projeto,
-  Processo, Métrica, Referência, Playbook) que gera a estrutura do corpo.
+- **Modelos do usuário** — ao criar um conceito, escolha um modelo que gera a
+  estrutura do corpo e pré-preenche `type`/`description`/`tags`. Os modelos são
+  **seus** (ficam em `%APPDATA%/OKF Studio/templates/`, não na biblioteca) e
+  valem para qualquer biblioteca. Gerencie-os (criar, editar, renomear, excluir,
+  restaurar padrões) em **Arquivo ▸ Modelos…** ou pelo ⚙ no "Novo conceito".
+- **Criar biblioteca nova** — o botão **🆕 Nova** (ou Arquivo ▸ Nova biblioteca…)
+  cria, numa pasta vazia, o `index.md` raiz, o `log.md` e um `CLAUDE.md` enxuto
+  com as regras do formato — pronta e conforme ao OKF v0.1.
+- **Índices e log automáticos** — ao criar/editar/excluir/renomear/mover um
+  conceito, o app mantém os `index.md` (bloco gerenciado, preservando sua prosa)
+  e registra as mudanças estruturais no `log.md`. Pode ser desligado, e há o
+  comando **Reconstruir índices** (Exibir ▸ ou paleta) para reparar tudo.
+- **Renomear/Mover com integridade** — reescreve os links que apontam para o
+  conceito movido, preservando o estilo (absoluto/relativo) e as âncoras.
+- **Sugestão de cross-links** — ao editar, o app aponta menções a outros
+  conceitos e oferece transformá-las em links (com sua confirmação).
 
 ---
 
@@ -160,12 +174,13 @@ okf-studio/
 ├── preload.js           Ponte segura (contextBridge) entre interface e disco
 ├── watcher.js           Observador de arquivos (chokidar) — recarga ao vivo
 ├── git.js               Operações git (status/commit/push/init) — processo principal
+├── tools/okf-template/  Template (CLAUDE.md enxuto) p/ novas bibliotecas
 ├── src/editor/          Fonte do editor Milkdown (compilado por esbuild)
 ├── renderer/vendor/     Bundle gerado do editor (não versionado)
 ├── renderer/
 │   ├── index.html       Layout da interface
 │   ├── styles.css       Estilos (tema escuro)
-│   ├── okf.js           Núcleo OKF: parsing, frontmatter, links, validação, grafo
+│   ├── okf.js           Núcleo OKF: parsing, links, validação, grafo + OKF.auto (índices/log/rename/cross-links)
 │   └── renderer.js      Controlador da interface
 ├── sample-library/      Biblioteca OKF de exemplo (carregada pelo botão "Exemplo")
 └── README.md

@@ -11,18 +11,129 @@ const state = {
   graph: null,
   editorMode: 'visual',
   editorBody: '',
+  linkSuggestions: [],
+  templates: [],
 };
 
-/* ---------- Modelos de conceito (por tipo) ---------- */
-const CONCEPT_TEMPLATES = {
-  'Em branco': { type: '', body: 'Descreva aqui.\n' },
-  'Projeto':   { type: 'Projeto',   body: '## Objetivo\n\n\n## Status\n\n\n## Marcos\n\n' },
-  'Processo':  { type: 'Processo',  body: '## Quando usar\n\n\n## Passos\n\n1. \n\n## Responsáveis\n\n' },
-  'Métrica':   { type: 'Métrica',   body: '## Definição\n\n\n## Como calcular\n\n\n## Fonte\n\n' },
-  'Referência':{ type: 'Referência',body: '## Resumo\n\n\n## Detalhes\n\n' },
-  'Playbook':  { type: 'Playbook',  body: '## Gatilho\n\n\n## Passos\n\n1. \n\n## Pós-ação\n\n' }
-};
-window.__okfTemplates = CONCEPT_TEMPLATES; // exposto para o smoke test
+/* ---------- Modelos do usuário (fora da biblioteca) ---------- */
+async function loadTemplates() {
+  try {
+    const raw = await window.okf.templates.list();
+    state.templates = (raw || []).map(t => {
+      const p = OKF.parse(t.content);
+      const f = p.frontmatter || {};
+      return {
+        name: t.name,
+        type: f.type ? String(f.type) : '',
+        description: f.description ? String(f.description) : '',
+        tags: Array.isArray(f.tags) ? f.tags.map(String) : (f.tags ? [String(f.tags)] : []),
+        body: p.body || ''
+      };
+    });
+  } catch (e) { state.templates = []; }
+  window.__okfTemplates = state.templates; // usado pelo smoke test
+}
+function applyTemplateToForm(name) {
+  const t = state.templates.find(x => x.name === name);
+  if (!t) return;
+  $('m-type').value = t.type || '';
+  $('m-description').value = t.description || '';
+  $('m-tags').value = (t.tags || []).join(', ');
+}
+
+/* ---------- Automação: preferência + montagem de ops ---------- */
+function autoIndexEnabled() {
+  try { return localStorage.getItem('okf-auto-index') !== 'off'; } catch (e) { return true; }
+}
+function setAutoIndex(on) {
+  try { localStorage.setItem('okf-auto-index', on ? 'on' : 'off'); } catch (e) {}
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function baseNameOf(rel) { return rel.split('/').pop(); }
+function docByRel(rel) { return state.docs.find(d => d.relPath === rel); }
+
+// Todos os diretórios que devem ter index.md: raiz ('') + cada ancestral com conceito.
+function indexDirs(docs) {
+  const dirs = new Set(['']);
+  for (const d of docs) {
+    if (OKF.isReserved(d.relPath)) continue;
+    if (!d.relPath.includes('/')) continue;
+    const parts = d.relPath.split('/'); parts.pop();
+    let acc = '';
+    for (const p of parts) { acc = acc ? acc + '/' + p : p; dirs.add(acc); }
+  }
+  return [...dirs];
+}
+
+function indexContentFor(docs, dir) {
+  const rel = dir ? dir + '/index.md' : 'index.md';
+  const existing = docs.find(d => d.relPath === rel) || docByRel(rel);
+  const listing = dir === '' ? OKF.auto.rootListing(docs) : OKF.auto.dirListing(docs, dir);
+  let base;
+  if (existing) {
+    base = existing.content;
+  } else if (dir === '') {
+    base = OKF.serialize({ okf_version: '0.1' },
+      '# ' + (state.name || 'Biblioteca') + '\n\nÍndice da biblioteca.\n\n' +
+      OKF.auto.MARK_START + '\n' + OKF.auto.MARK_END + '\n');
+  } else {
+    base = '# ' + OKF.auto.headingFor(dir.split('/').pop()) + '\n\n' +
+      OKF.auto.MARK_START + '\n' + OKF.auto.MARK_END + '\n';
+  }
+  return OKF.auto.mergeManagedBlock(base, listing);
+}
+
+// Ops para (re)escrever todos os index.md a partir de um conjunto de docs.
+function indexOpsFrom(docs) {
+  const ops = [];
+  const dirs = indexDirs(docs);
+  for (const dir of dirs) {
+    const rel = dir ? dir + '/index.md' : 'index.md';
+    const content = indexContentFor(docs, dir);
+    const existing = docs.find(d => d.relPath === rel);
+    if (!existing) ops.push({ op: 'create', relPath: rel, content });
+    else if (existing.content !== content) ops.push({ op: 'write', relPath: rel, content });
+  }
+  // Remove index.md de subdiretórios que não contêm mais nenhum conceito.
+  const keep = new Set(dirs.map(d => (d ? d + '/index.md' : 'index.md')));
+  for (const d of docs) {
+    if (d.relPath.split('/').pop().toLowerCase() !== 'index.md') continue;
+    if (!keep.has(d.relPath)) ops.push({ op: 'delete', relPath: d.relPath });
+  }
+  return ops;
+}
+
+// Op para o log.md, a partir de um conjunto de docs (usa o conteúdo já presente).
+function logOpFrom(docs, entry) {
+  const existing = docs.find(d => d.relPath === 'log.md');
+  const base = existing ? existing.content : '# Histórico de Atualizações\n';
+  const content = OKF.auto.appendLog(base, todayStr(), entry);
+  return existing ? { op: 'write', relPath: 'log.md', content } : { op: 'create', relPath: 'log.md', content };
+}
+
+// Aplica um lote e recarrega o estado do disco; seleciona selectRel se informado.
+async function applyOpsAndRefresh(ops, selectRel) {
+  const r = await window.okf.applyOps({ root: state.root, ops });
+  if (!r || !r.ok) {
+    toast('Erro ao gravar: ' + ((r && r.error) || 'desconhecido'), 'bad');
+    await refreshFromDisk(null);
+    return false;
+  }
+  await refreshFromDisk(selectRel);
+  if (!$('git-view').classList.contains('hidden')) refreshGit();
+  return true;
+}
+
+async function refreshFromDisk(selectRel) {
+  const res = await window.okf.readBundle(state.root);
+  state.docs = res.docs || [];
+  indexDocs(); buildTypeFilter(); renderTree();
+  $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
+  const want = selectRel || state.current;
+  if (want && state.docs.some(d => d.relPath === want)) openDoc(want);
+  else if (state.docs.length) { const f = state.docs.find(d => !d.reserved) || state.docs[0]; openDoc(f.relPath); }
+  else showEmpty();
+}
 
 /* ---------- Tema (claro/escuro) ---------- */
 function currentTheme() {
@@ -86,6 +197,32 @@ async function openSample() {
   const res = await window.okf.readSample();
   loadBundle(res, 'Biblioteca de exemplo');
 }
+
+/* ---------- Nova biblioteca ---------- */
+let newLibDir = null;
+async function newLibrary() {
+  const dir = await window.okf.newLibraryDialog();
+  if (!dir) return;
+  newLibDir = dir;
+  $('nl-dir').textContent = 'Pasta: ' + dir;
+  $('nl-name').value = dir.split(/[\\/]/).pop() || 'Biblioteca';
+  $('newlib-modal').classList.remove('hidden');
+  $('nl-name').focus();
+}
+function closeNewLib() { $('newlib-modal').classList.add('hidden'); newLibDir = null; }
+async function doCreateLibrary() {
+  if (!newLibDir) return;
+  const name = $('nl-name').value.trim() || 'Biblioteca';
+  const files = OKF.auto.libraryFiles(name, todayStr());
+  const r = await window.okf.createLibrary({ dir: newLibDir, files });
+  if (!r || !r.ok) { toast('Erro: ' + ((r && r.error) || 'desconhecido'), 'bad'); return; }
+  const dir = newLibDir;
+  closeNewLib();
+  const res = await window.okf.readBundle(dir);
+  loadBundle(res, name);
+  toast('Biblioteca criada em ' + dir, 'good');
+}
+
 async function reload() {
   if (!state.root) return;
   const res = await window.okf.readBundle(state.root);
@@ -200,6 +337,9 @@ function renderTree() {
       node.querySelector('.ttl').textContent = it.title;
       if (it.type) node.querySelector('.badge').textContent = it.type;
       node.addEventListener('click', () => openDoc(it.d.relPath));
+      if (!it.d.reserved) {
+        node.addEventListener('contextmenu', (e) => { e.preventDefault(); openTreeMenu(e, it.d.relPath); });
+      }
       tree.appendChild(node);
     }
   }
@@ -216,6 +356,17 @@ function buildTypeFilter() {
   sel.innerHTML = '<option value="">Todos os tipos</option>' +
     [...types].sort().map(t => `<option>${escapeHtml(t)}</option>`).join('');
 }
+
+/* ---------- Menu de contexto da árvore ---------- */
+let treeMenuRel = null;
+function openTreeMenu(e, rel) {
+  treeMenuRel = rel;
+  const m = $('tree-menu');
+  m.style.left = e.clientX + 'px';
+  m.style.top = e.clientY + 'px';
+  m.classList.remove('hidden');
+}
+function closeTreeMenu() { $('tree-menu').classList.add('hidden'); treeMenuRel = null; }
 
 /* ---------- View states ---------- */
 function showEmpty(){ $('empty').classList.remove('hidden'); $('viewer').classList.add('hidden'); }
@@ -320,12 +471,14 @@ function openDoc(relPath) {
 }
 
 function renderConcept(doc) {
+  $('xlink-badge').classList.add('hidden'); $('xlink-panel').classList.add('hidden');
   $('render-mode').classList.remove('hidden');
   $('edit-mode').classList.add('hidden');
   $('btn-edit').classList.remove('hidden');
   $('btn-save').classList.add('hidden');
   $('btn-cancel').classList.add('hidden');
   $('btn-delete').classList.toggle('hidden', doc.reserved);
+  $('btn-rename').classList.toggle('hidden', doc.reserved);
 
   const p = parsedOf(doc);
   const id = OKF.conceptId(doc.relPath);
@@ -397,6 +550,66 @@ function rewireLinks(container, srcRel) {
   });
 }
 
+/* ---------- Sugestão de cross-links ---------- */
+function currentConceptsForLinks() {
+  return state.docs.filter(d => !d.reserved && d.relPath !== state.current)
+    .map(d => ({ relPath: d.relPath, title: parsedOf(d).frontmatter.title || baseNameOf(d.relPath).replace(/\.md$/i, '') }));
+}
+function refreshLinkSuggestions() {
+  if (!state.editing || !state.current) { $('xlink-badge').classList.add('hidden'); $('xlink-panel').classList.add('hidden'); return; }
+  const body = (state.editorMode === 'source' || (docByRel(state.current) || {}).reserved)
+    ? $('e-body').value
+    : (window.OKFEditor ? window.OKFEditor.getMarkdown() : state.editorBody);
+  const sugg = OKF.auto.suggestLinks(body || '', currentConceptsForLinks(), OKF.conceptId(state.current));
+  state.linkSuggestions = sugg;
+  const badge = $('xlink-badge');
+  if (sugg.length) { badge.textContent = '🔗 ' + sugg.length + ' sugestão(ões) de links'; badge.classList.remove('hidden'); }
+  else { badge.classList.add('hidden'); $('xlink-panel').classList.add('hidden'); }
+}
+function openLinkPanel() {
+  const sugg = state.linkSuggestions || [];
+  const list = $('xlink-list');
+  list.innerHTML = sugg.map((s, i) =>
+    `<div class="xlink-item" data-i="${i}"><code>${escapeHtml(s.text)}</code> → <span>${escapeHtml(s.targetRel)}</span>` +
+    `<span class="grow"></span><button data-acc="${i}">Aceitar</button><button data-dis="${i}">Dispensar</button></div>`).join('') ||
+    '<div class="muted">Nenhuma sugestão.</div>';
+  list.querySelectorAll('button[data-acc]').forEach(b => b.onclick = () => acceptSuggestion(+b.dataset.acc));
+  list.querySelectorAll('button[data-dis]').forEach(b => b.onclick = () => dismissSuggestion(+b.dataset.dis));
+  $('xlink-panel').classList.remove('hidden');
+}
+async function applyBodyEdit(newBody) {
+  state.editorBody = newBody;
+  if (state.editorMode === 'source' || (docByRel(state.current) || {}).reserved) {
+    $('e-body').value = newBody;
+  } else if (window.OKFEditor) {
+    await window.OKFEditor.destroy();
+    await window.OKFEditor.create($('milkdown'), newBody, { onChange: (md) => { state.editorBody = md; } });
+  }
+}
+async function acceptSuggestion(i) {
+  const sugg = state.linkSuggestions || [];
+  if (!sugg[i]) return;
+  const body = state.editorMode === 'source' ? $('e-body').value : (window.OKFEditor ? window.OKFEditor.getMarkdown() : state.editorBody);
+  const newBody = OKF.auto.applySuggestions(body, [sugg[i]]);
+  await applyBodyEdit(newBody);
+  refreshLinkSuggestions();
+  if ((state.linkSuggestions || []).length) openLinkPanel(); else $('xlink-panel').classList.add('hidden');
+}
+function dismissSuggestion(i) {
+  state.linkSuggestions = (state.linkSuggestions || []).filter((_, j) => j !== i);
+  if (state.linkSuggestions.length) openLinkPanel(); else $('xlink-panel').classList.add('hidden');
+  $('xlink-badge').textContent = '🔗 ' + state.linkSuggestions.length + ' sugestão(ões) de links';
+  if (!state.linkSuggestions.length) $('xlink-badge').classList.add('hidden');
+}
+async function acceptAllSuggestions() {
+  const sugg = state.linkSuggestions || [];
+  if (!sugg.length) return;
+  const body = state.editorMode === 'source' ? $('e-body').value : (window.OKFEditor ? window.OKFEditor.getMarkdown() : state.editorBody);
+  const newBody = OKF.auto.applySuggestions(body, sugg);
+  await applyBodyEdit(newBody);
+  refreshLinkSuggestions();
+}
+
 /* ---------- Edit ---------- */
 async function enterEdit() {
   const doc = state.docs.find(d => d.relPath === state.current);
@@ -407,6 +620,7 @@ async function enterEdit() {
   $('btn-edit').classList.add('hidden');
   $('btn-save').classList.remove('hidden');
   $('btn-cancel').classList.remove('hidden');
+  $('btn-rename').classList.add('hidden');
 
   const p = OKF.parse(doc.content);
   const f = p.frontmatter;
@@ -454,6 +668,7 @@ async function enterEdit() {
   await window.OKFEditor.create($('milkdown'), state.editorBody, {
     onChange: (md) => { state.editorBody = md; }
   });
+  setTimeout(refreshLinkSuggestions, 0);
 }
 
 function setModeButtons(mode) {
@@ -531,6 +746,7 @@ async function setEditorMode(mode) {
   }
   state.editorMode = mode;
   setModeButtons(mode);
+  setTimeout(refreshLinkSuggestions, 0);
 }
 
 function currentBodyMarkdown(doc) {
@@ -572,18 +788,81 @@ async function saveEdit() {
     content = OKF.serialize(fm, currentBodyMarkdown(doc));
   }
   try {
-    await window.okf.writeFile({ root: state.root, relPath: doc.relPath, content });
-    doc.content = content;
-    indexDocs();
-    buildTypeFilter();
-    renderTree();
-    state.editing = false;
+    if (doc.reserved || !autoIndexEnabled()) {
+      await window.okf.writeFile({ root: state.root, relPath: doc.relPath, content });
+      doc.content = content;
+      indexDocs(); buildTypeFilter(); renderTree();
+      state.editing = false;
+      if (!doc.reserved && state.editorMode === 'visual' && window.OKFEditor) { await window.OKFEditor.destroy(); }
+      renderConcept(doc);
+      toast('Salvo em ' + doc.relPath, 'good');
+      return;
+    }
+    const before = OKF.parse(doc.content).frontmatter;
+    const after = OKF.parse(content).frontmatter;
+    const metaChanged = (before.title || '') !== (after.title || '') ||
+                        (before.description || '') !== (after.description || '');
+    const nextDocs = state.docs.map(d => d.relPath === doc.relPath ? { ...d, content } : d);
+    const ops = [{ op: 'write', relPath: doc.relPath, content }];
+    if (metaChanged) ops.push(...indexOpsFrom(nextDocs)); // sem log: edição não é estrutural
     if (!doc.reserved && state.editorMode === 'visual' && window.OKFEditor) { await window.OKFEditor.destroy(); }
-    renderConcept(doc);
-    toast('Salvo em ' + doc.relPath, 'good');
+    state.editing = false;
+    const ok = await applyOpsAndRefresh(ops, doc.relPath);
+    if (ok) toast('Salvo em ' + doc.relPath, 'good');
   } catch (e) {
     toast('Erro ao salvar: ' + e.message, 'bad');
   }
+}
+
+/* ---------- Renomear / Mover ---------- */
+let renameFrom = null;
+function openRename(rel) {
+  rel = rel || state.current;
+  const doc = rel && docByRel(rel);
+  if (!doc || doc.reserved) { toast('Selecione um conceito (não reservado).', 'bad'); return; }
+  renameFrom = rel;
+  $('rn-path').value = rel;
+  $('rn-hint').textContent = 'Atual: ' + rel + ' — os links que apontam para este conceito serão atualizados.';
+  $('rename-modal').classList.remove('hidden');
+  $('rn-path').focus();
+}
+function closeRename() { $('rename-modal').classList.add('hidden'); renameFrom = null; }
+
+async function doRename() {
+  const fromRel = renameFrom;
+  let toRel = $('rn-path').value.trim().replace(/^\/+/, '');
+  if (!fromRel) return;
+  if (!toRel) { toast('Informe o novo caminho.', 'bad'); return; }
+  if (!toRel.toLowerCase().endsWith('.md')) toRel += '.md';
+  if (toRel === fromRel) { closeRename(); return; }
+  if (docByRel(toRel)) { toast('Já existe um conceito em ' + toRel, 'bad'); return; }
+
+  const changes = OKF.auto.rewriteRenameLinks(state.docs, fromRel, toRel);
+  const movedChange = changes.find(c => c.relPath === fromRel);
+  const movedContent = movedChange ? movedChange.newContent : docByRel(fromRel).content;
+
+  let nextDocs = state.docs.filter(d => d.relPath !== fromRel).map(d => {
+    const c = changes.find(x => x.relPath === d.relPath);
+    return c ? { ...d, content: c.newContent } : d;
+  });
+  nextDocs.push({ relPath: toRel, name: baseNameOf(toRel), reserved: OKF.isReserved(toRel), content: movedContent });
+
+  const ops = [{ op: 'create', relPath: toRel, content: movedContent }, { op: 'delete', relPath: fromRel }];
+  for (const c of changes) {
+    if (c.relPath === fromRel) continue;
+    ops.push({ op: 'write', relPath: c.relPath, content: c.newContent });
+  }
+  if (autoIndexEnabled()) {
+    ops.push(...indexOpsFrom(nextDocs));
+    const sameDir = (fromRel.includes('/') ? fromRel.replace(/\/[^/]*$/, '') : '') ===
+                    (toRel.includes('/') ? toRel.replace(/\/[^/]*$/, '') : '');
+    const title = OKF.parse(movedContent).frontmatter.title || baseNameOf(toRel).replace(/\.md$/i, '');
+    const verbo = sameDir ? 'Renomeação' : 'Movimentação';
+    ops.push(logOpFrom(nextDocs, '**' + verbo + '**: `' + fromRel + '` → [' + title + '](/' + toRel + ').'));
+  }
+  closeRename();
+  const ok = await applyOpsAndRefresh(ops, toRel);
+  if (ok) toast('Movido para ' + toRel, 'good');
 }
 
 /* ---------- Delete ---------- */
@@ -592,14 +871,15 @@ async function deleteCurrent() {
   if (!doc || doc.reserved) return;
   const ok = await window.okf.confirm({ message: 'Excluir este conceito?', detail: doc.relPath });
   if (!ok) return;
-  try {
-    await window.okf.deleteFile({ root: state.root, relPath: doc.relPath });
-    state.docs = state.docs.filter(d => d.relPath !== doc.relPath);
-    indexDocs(); buildTypeFilter(); renderTree();
-    const next = state.docs.find(d => !d.reserved) || state.docs[0];
-    if (next) openDoc(next.relPath); else showEmpty();
-    toast('Conceito excluído', 'good');
-  } catch (e) { toast('Erro ao excluir: ' + e.message, 'bad'); }
+  const title = OKF.parse(doc.content).frontmatter.title || baseNameOf(doc.relPath).replace(/\.md$/i, '');
+  const nextDocs = state.docs.filter(d => d.relPath !== doc.relPath);
+  const ops = [{ op: 'delete', relPath: doc.relPath }];
+  if (autoIndexEnabled()) {
+    ops.push(...indexOpsFrom(nextDocs));
+    ops.push(logOpFrom(nextDocs, '**Exclusão**: removido `' + doc.relPath + '` (' + title + ').'));
+  }
+  const done = await applyOpsAndRefresh(ops, null);
+  if (done) toast('Conceito excluído', 'good');
 }
 
 /* ---------- New concept modal ---------- */
@@ -614,10 +894,15 @@ function paletteActions() {
     { label: 'Painel Git', run: showGit, needsLib: true },
     { label: 'Claude Code (terminal)', run: openClaude, needsLib: true },
     { label: 'Recarregar biblioteca', run: reload, needsLib: true },
+    { label: 'Reconstruir índices', run: rebuildIndexes, needsLib: true },
+    { label: 'Gerenciar modelos', run: openTemplates, needsLib: false },
+    { label: autoIndexEnabled() ? 'Índices automáticos: DESLIGAR' : 'Índices automáticos: LIGAR',
+      run: () => { setAutoIndex(!autoIndexEnabled()); toast('Índices automáticos: ' + (autoIndexEnabled() ? 'ligados' : 'desligados'), 'good'); }, needsLib: false },
     { label: 'Manual do OKF Studio', run: showManual, needsLib: false },
     { label: 'Alternar tema claro/escuro', run: toggleTheme, needsLib: false },
     { label: 'Abrir biblioteca…', run: openFolder, needsLib: false },
-    { label: 'Carregar biblioteca de exemplo', run: openSample, needsLib: false }
+    { label: 'Carregar biblioteca de exemplo', run: openSample, needsLib: false },
+    { label: 'Nova biblioteca…', run: newLibrary, needsLib: false }
   ].filter(a => !a.needsLib || lib).map(a => ({ kind: 'ação', label: a.label, sub: '', run: a.run }));
 }
 function paletteConcepts() {
@@ -663,10 +948,20 @@ function activatePalette(i) {
 
 function openModal() {
   if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
-  ['m-path','m-type','m-title','m-description'].forEach(id => $(id).value = '');
+  ['m-path', 'm-type', 'm-title', 'm-description', 'm-tags'].forEach(id => $(id).value = '');
   const tplSel = $('m-template');
-  if (!tplSel.options.length) tplSel.innerHTML = Object.keys(CONCEPT_TEMPLATES).map(n => `<option>${escapeHtml(n)}</option>`).join('');
-  tplSel.value = 'Em branco';
+  tplSel.innerHTML = state.templates.map(t => `<option>${escapeHtml(t.name)}</option>`).join('');
+  tplSel.value = state.templates.some(t => t.name === 'Em branco') ? 'Em branco'
+    : (state.templates[0] ? state.templates[0].name : '');
+  applyTemplateToForm(tplSel.value);
+  // categorias = pastas de topo existentes + opção de nova
+  const tops = new Set();
+  for (const d of state.docs) { if (!d.reserved && d.relPath.includes('/')) tops.add(d.relPath.split('/')[0]); }
+  const cat = $('m-category');
+  cat.innerHTML = '<option value="">(raiz)</option>' +
+    [...tops].sort().map(t => `<option>${escapeHtml(t)}</option>`).join('') +
+    '<option value="__new">+ nova categoria…</option>';
+  cat.value = '';
   $('modal').classList.remove('hidden');
   $('m-path').focus();
 }
@@ -677,20 +972,118 @@ async function createConcept() {
   if (!rel) { toast('Informe o caminho do arquivo.', 'bad'); return; }
   if (!rel.toLowerCase().endsWith('.md')) rel += '.md';
   if (!type) { toast('O campo "type" é obrigatório.', 'bad'); return; }
+  if (docByRel(rel)) { toast('Já existe um conceito em ' + rel, 'bad'); return; }
   const fm = { type };
-  if ($('m-title').value.trim()) fm.title = $('m-title').value.trim();
+  const title = $('m-title').value.trim() || baseNameOf(rel).replace(/\.md$/i, '');
+  fm.title = title;
   if ($('m-description').value.trim()) fm.description = $('m-description').value.trim();
+  const tags = $('m-tags').value.split(',').map(s => s.trim()).filter(Boolean);
+  if (tags.length) fm.tags = tags;
   fm.timestamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-  const tpl = CONCEPT_TEMPLATES[$('m-template').value] || CONCEPT_TEMPLATES['Em branco'];
-  const content = OKF.serialize(fm, '# ' + (fm.title || 'Novo conceito') + '\n\n' + tpl.body);
-  try {
-    await window.okf.createFile({ root: state.root, relPath: rel, content });
-    state.docs.push({ relPath: rel, name: rel.split('/').pop(), reserved: OKF.isReserved(rel), content, mtime: Date.now() });
-    indexDocs(); buildTypeFilter(); renderTree();
-    closeModal();
-    openDoc(rel);
-    toast('Conceito criado: ' + rel, 'good');
-  } catch (e) { toast('Erro ao criar: ' + e.message, 'bad'); }
+  const tpl = state.templates.find(t => t.name === $('m-template').value);
+  const body = tpl ? tpl.body.replace(/^\n+/, '') : '';
+  const content = OKF.serialize(fm, '# ' + title + '\n\n' + body);
+
+  const newDoc = { relPath: rel, name: baseNameOf(rel), reserved: OKF.isReserved(rel), content };
+  const nextDocs = state.docs.concat([newDoc]);
+  const ops = [{ op: 'create', relPath: rel, content }];
+  if (autoIndexEnabled()) {
+    ops.push(...indexOpsFrom(nextDocs));
+    const desc = fm.description ? ' - ' + fm.description : '';
+    ops.push(logOpFrom(nextDocs, '**Criação**: [' + title + '](/' + rel + ')' + desc));
+  }
+  closeModal();
+  const ok = await applyOpsAndRefresh(ops, rel);
+  if (ok) toast('Conceito criado: ' + rel, 'good');
+}
+
+/* ---------- Reconstruir índices ---------- */
+async function rebuildIndexes() {
+  if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
+  const ops = indexOpsFrom(state.docs);
+  if (!ops.length) { toast('Índices já estão atualizados.', 'good'); return; }
+  const ok = await window.okf.confirm({
+    message: 'Reconstruir índices?',
+    detail: ops.length + ' arquivo(s) index.md serão (re)escritos. A prosa fora dos blocos gerenciados é preservada.'
+  });
+  if (!ok) return;
+  const done = await applyOpsAndRefresh(ops, state.current);
+  if (done) toast('Índices reconstruídos (' + ops.length + ' arquivo(s)).', 'good');
+}
+
+/* ---------- Diálogo de Modelos ---------- */
+let tplSelected = null; // nome do modelo carregado no formulário (null = novo)
+async function openTemplates() {
+  await loadTemplates();
+  clearTplForm();
+  try { $('tpl-dir').textContent = 'Pasta: ' + await window.okf.templates.dir(); } catch (e) {}
+  $('templates-modal').classList.remove('hidden');
+  $('tpl-name').focus();
+}
+function closeTemplates() { $('templates-modal').classList.add('hidden'); }
+function renderTplList() {
+  const list = $('tpl-list');
+  list.innerHTML = state.templates.map(t =>
+    `<div class="tpl-item${t.name === tplSelected ? ' sel' : ''}" data-name="${escapeAttr(t.name)}">${escapeHtml(t.name)}</div>`
+  ).join('') || '<div class="tpl-item">Nenhum modelo.</div>';
+  list.querySelectorAll('.tpl-item[data-name]').forEach(el =>
+    el.addEventListener('click', () => loadTplToForm(el.dataset.name)));
+}
+function clearTplForm() {
+  tplSelected = null;
+  ['tpl-name', 'tpl-type', 'tpl-description', 'tpl-tags', 'tpl-body'].forEach(id => $(id).value = '');
+  renderTplList();
+  $('tpl-name').focus();
+}
+function loadTplToForm(name) {
+  const t = state.templates.find(x => x.name === name);
+  if (!t) return;
+  tplSelected = name;
+  $('tpl-name').value = t.name;
+  $('tpl-type').value = t.type || '';
+  $('tpl-description').value = t.description || '';
+  $('tpl-tags').value = (t.tags || []).join(', ');
+  $('tpl-body').value = t.body || '';
+  renderTplList();
+}
+function refreshTemplateSelect() {
+  if ($('modal').classList.contains('hidden')) return;
+  const tplSel = $('m-template');
+  const cur = tplSel.value;
+  tplSel.innerHTML = state.templates.map(t => `<option>${escapeHtml(t.name)}</option>`).join('');
+  if (state.templates.some(t => t.name === cur)) tplSel.value = cur;
+  else tplSel.value = state.templates.some(t => t.name === 'Em branco') ? 'Em branco'
+    : (state.templates[0] ? state.templates[0].name : '');
+}
+async function saveTpl() {
+  const name = $('tpl-name').value.trim();
+  if (!name) { toast('Informe o nome do modelo.', 'bad'); return; }
+  if (/[\/\\:*?"<>|]/.test(name)) { toast('Nome inválido (não use / \\ : * ? " < > |).', 'bad'); return; }
+  const fm = {};
+  const type = $('tpl-type').value.trim(); if (type) fm.type = type;
+  const desc = $('tpl-description').value.trim(); if (desc) fm.description = desc;
+  const tags = $('tpl-tags').value.split(',').map(s => s.trim()).filter(Boolean); if (tags.length) fm.tags = tags;
+  const content = OKF.serialize(fm, $('tpl-body').value);
+  const r = await window.okf.templates.save({ name, content, oldName: tplSelected });
+  if (!r || !r.ok) { toast('Erro: ' + ((r && r.error) || 'desconhecido'), 'bad'); return; }
+  await loadTemplates();
+  tplSelected = name; renderTplList(); refreshTemplateSelect();
+  toast('Modelo salvo: ' + name, 'good');
+}
+async function deleteTpl() {
+  if (!tplSelected) { toast('Selecione um modelo na lista.', 'bad'); return; }
+  const ok = await window.okf.confirm({ message: 'Excluir o modelo?', detail: tplSelected });
+  if (!ok) return;
+  const r = await window.okf.templates.remove({ name: tplSelected });
+  if (!r || !r.ok) { toast('Erro: ' + ((r && r.error) || 'desconhecido'), 'bad'); return; }
+  await loadTemplates(); clearTplForm(); refreshTemplateSelect();
+  toast('Modelo excluído', 'good');
+}
+async function restoreTpl() {
+  const r = await window.okf.templates.restoreDefaults();
+  if (!r || !r.ok) { toast('Erro ao restaurar padrões.', 'bad'); return; }
+  await loadTemplates(); renderTplList(); refreshTemplateSelect();
+  toast((r.created || 0) + ' modelo(s) padrão restaurado(s).', 'good');
 }
 
 /* ---------- Validation ---------- */
@@ -877,6 +1270,10 @@ function escapeAttr(s){ return escapeHtml(s); }
 function init() {
   $('btn-theme').onclick = toggleTheme;
   $('btn-open').onclick = openFolder;
+  $('btn-newlib').onclick = newLibrary;
+  $('nl-cancel').onclick = closeNewLib;
+  $('nl-ok').onclick = doCreateLibrary;
+  window.okf.onMenu('menu:new-library', newLibrary);
   $('btn-sample').onclick = openSample;
   $('btn-reload').onclick = reload;
   $('btn-new').onclick = openModal;
@@ -903,6 +1300,19 @@ function init() {
     btn.addEventListener('click', () => runToolbar(btn.dataset.cmd));
   });
   $('btn-delete').onclick = deleteCurrent;
+  $('btn-rename').onclick = () => openRename(state.current);
+  $('rn-cancel').onclick = closeRename;
+  $('rn-ok').onclick = doRename;
+  $('xlink-badge').onclick = openLinkPanel;
+  $('xlink-close').onclick = () => $('xlink-panel').classList.add('hidden');
+  $('xlink-all').onclick = acceptAllSuggestions;
+  $('tree-menu').querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', () => {
+    const rel = treeMenuRel; const act = b.dataset.act; closeTreeMenu();
+    if (!rel) return;
+    if (act === 'rename') openRename(rel);
+    else if (act === 'delete') { openDoc(rel); deleteCurrent(); }
+  }));
+  document.addEventListener('click', (e) => { if (!$('tree-menu').contains(e.target)) closeTreeMenu(); });
   $('graph-close').onclick = () => {
     if (g6graph) { g6graph.destroy(); g6graph = null; }
     closeOverlays();
@@ -912,10 +1322,24 @@ function init() {
   $('manual-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('m-cancel').onclick = closeModal;
   $('m-create').onclick = createConcept;
-  $('m-template').addEventListener('change', () => {
-    const tpl = CONCEPT_TEMPLATES[$('m-template').value];
-    if (tpl && tpl.type && !$('m-type').value.trim()) $('m-type').value = tpl.type;
+  $('m-category').addEventListener('change', () => {
+    const cat = $('m-category');
+    let dir = cat.value;
+    if (dir === '__new') {
+      dir = (window.prompt('Nome da nova categoria (pasta):') || '').trim().replace(/[\\/]+$/, '');
+      if (!dir) { cat.value = ''; return; }
+    }
+    const file = baseNameOf($('m-path').value.trim() || 'novo.md');
+    $('m-path').value = dir ? dir + '/' + file : file;
   });
+  $('m-template').addEventListener('change', () => applyTemplateToForm($('m-template').value));
+  $('m-templates-manage').onclick = openTemplates;
+  $('tpl-new').onclick = clearTplForm;
+  $('tpl-save').onclick = saveTpl;
+  $('tpl-delete').onclick = deleteTpl;
+  $('tpl-restore').onclick = restoreTpl;
+  $('tpl-close').onclick = closeTemplates;
+  window.okf.onMenu('menu:templates', openTemplates);
   $('palette-input').addEventListener('input', (e) => renderPalette(e.target.value));
   $('palette-input').addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); movePalette(1); }
@@ -939,16 +1363,18 @@ function init() {
   window.okf.onMenu('menu:reload', reload);
   window.okf.onMenu('menu:validate', showValidation);
   window.okf.onMenu('menu:graph', showGraph);
+  window.okf.onMenu('menu:rebuild-indexes', rebuildIndexes);
   window.okf.onMenu('menu:manual', showManual);
   window.okf.onMenu('menu:about', () => toast('OKF Studio ' + (appVersion ? 'v' + appVersion + ' · ' : '') + 'editor de bibliotecas Open Knowledge Format v0.1', 'good'));
 
   initTheme();
   loadVersion();
   wireUpdates();
+  loadTemplates();
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); openPalette(); return; }
-    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); closeRename(); closeTreeMenu(); closeNewLib(); closeTemplates(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();

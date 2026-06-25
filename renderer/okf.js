@@ -160,8 +160,212 @@
     };
   }
 
+  // ---- Automação determinística (índices, log, rename, cross-links) ----
+  const MARK_START = '<!-- okf:index -->';
+  const MARK_END = '<!-- /okf:index -->';
+
+  function baseName(relPath) { return relPath.split('/').pop().replace(/\.md$/i, ''); }
+  function dirOf(relPath) { return relPath.includes('/') ? relPath.replace(/\/[^/]*$/, '') : ''; }
+  function headingFor(seg) { return seg ? seg.charAt(0).toUpperCase() + seg.slice(1) : seg; }
+
+  function titleOf(doc) {
+    const f = parse(doc.content).frontmatter;
+    return (f && f.title) ? String(f.title) : baseName(doc.relPath);
+  }
+  function descOf(doc) {
+    const f = parse(doc.content).frontmatter;
+    return (f && f.description) ? String(f.description) : '';
+  }
+  function bulletFor(doc) {
+    const desc = descOf(doc);
+    return '* [' + titleOf(doc) + '](/' + doc.relPath + ')' + (desc ? ' - ' + desc : '');
+  }
+
+  function sortedBullets(docs) {
+    return docs.map(d => ({ d, t: titleOf(d) }))
+      .sort((a, b) => a.t.localeCompare(b.t))
+      .map(x => bulletFor(x.d));
+  }
+  function dirListing(docs, dir) {
+    const pre = dir ? dir + '/' : '';
+    const items = docs.filter(d => !isReserved(d.relPath) &&
+      d.relPath.startsWith(pre) && d.relPath.slice(pre.length).indexOf('/') < 0);
+    return sortedBullets(items).join('\n');
+  }
+  function rootListing(docs) {
+    const concepts = docs.filter(d => !isReserved(d.relPath));
+    const rootItems = concepts.filter(d => d.relPath.indexOf('/') < 0);
+    const byTop = new Map();
+    for (const d of concepts) {
+      const i = d.relPath.indexOf('/');
+      if (i < 0) continue;
+      const top = d.relPath.slice(0, i);
+      if (!byTop.has(top)) byTop.set(top, []);
+      byTop.get(top).push(d);
+    }
+    const parts = [];
+    if (rootItems.length) parts.push(sortedBullets(rootItems).join('\n'));
+    for (const top of [...byTop.keys()].sort()) {
+      parts.push('## ' + headingFor(top) + '\n' + sortedBullets(byTop.get(top)).join('\n'));
+    }
+    return parts.join('\n\n');
+  }
+
+  function protectedRanges(body) {
+    const ranges = [];
+    const add = (re) => { let m; while ((m = re.exec(body)) !== null) ranges.push([m.index, m.index + m[0].length]); };
+    add(/```[\s\S]*?```/g);          // blocos de código
+    add(/`[^`]*`/g);                 // código inline
+    add(/\[[^\]]*\]\([^)]*\)/g);     // links existentes
+    add(/\bhttps?:\/\/\S+/g);        // URLs
+    return ranges;
+  }
+  function inRanges(start, end, ranges) {
+    return ranges.some(([a, b]) => start < b && end > a);
+  }
+  function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  function suggestLinks(body, concepts, selfId) {
+    const ranges = protectedRanges(body);
+    // títulos mais longos primeiro (mais específicos)
+    const allCand = concepts
+      .filter(c => c.title && c.title.trim())
+      .map(c => ({ rel: c.relPath, title: String(c.title), isSelf: conceptId(c.relPath) === selfId }))
+      .sort((a, b) => b.title.length - a.title.length);
+    const out = [];
+    const taken = []; // ranges já sugeridos (evita sobreposição)
+    const seen = new Set();
+    for (const c of allCand) {
+      if (seen.has(c.rel)) continue;
+      const re = new RegExp('(^|[^\\p{L}\\p{N}_])(' + escapeRe(c.title) + ')(?![\\p{L}\\p{N}_])', 'giu');
+      let m;
+      while ((m = re.exec(body)) !== null) {
+        const start = m.index + m[1].length;
+        const end = start + m[2].length;
+        if (inRanges(start, end, ranges) || inRanges(start, end, taken)) continue;
+        taken.push([start, end]); // marca como ocupado mesmo que seja self
+        if (!c.isSelf) {
+          out.push({ text: m[2], start, end, targetRel: '/' + c.rel });
+          seen.add(c.rel);
+        }
+        break; // só a 1ª ocorrência por alvo
+      }
+      if (c.isSelf) seen.add(c.rel); // não re-processar self
+    }
+    return out.sort((a, b) => a.start - b.start);
+  }
+
+  function libraryFiles(name, dateStr) {
+    const safeName = (name && name.trim()) ? name.trim() : 'Biblioteca';
+    const indexBody = '# ' + safeName + '\n\n' +
+      'Biblioteca de conhecimento no formato Open Knowledge Format (OKF v0.1).\n' +
+      'Cada arquivo `.md` é um *conceito*. Use os links para navegar pelo grafo.\n\n' +
+      MARK_START + '\n' + MARK_END + '\n';
+    const index = serialize({ okf_version: '0.1' }, indexBody);
+    const log = '# Histórico de Atualizações\n\n## ' + dateStr + '\n' +
+      '* **Criação**: estrutura inicial da biblioteca com [índice raiz](/index.md).\n';
+    return [
+      { relPath: 'index.md', content: index },
+      { relPath: 'log.md', content: log },
+    ];
+  }
+
+  function applySuggestions(body, suggestions) {
+    const sorted = [...suggestions].sort((a, b) => b.start - a.start); // da direita p/ esquerda
+    let out = body;
+    for (const s of sorted) {
+      out = out.slice(0, s.start) + '[' + s.text + '](' + s.targetRel + ')' + out.slice(s.end);
+    }
+    return out;
+  }
+
+  function relativePath(fromDir, toRel) {
+    const from = fromDir ? fromDir.split('/') : [];
+    const to = toRel.split('/');
+    const toFile = to.pop();
+    let i = 0;
+    while (i < from.length && i < to.length && from[i] === to[i]) i++;
+    const segs = from.slice(i).map(() => '..').concat(to.slice(i), [toFile]);
+    return segs.join('/') || toFile;
+  }
+
+  const RENAME_LINK_RE = /\[([^\]]*)\]\(([^)\s]+)\)/g;
+  function splitAnchor(t) { const i = t.indexOf('#'); return i >= 0 ? [t.slice(0, i), t.slice(i + 1)] : [t, '']; }
+
+  function rewriteRenameLinks(docs, fromRel, toRel) {
+    const fromId = conceptId(fromRel);
+    const out = [];
+    for (const d of docs) {
+      if (d.relPath.split('/').pop().toLowerCase() === 'index.md') continue; // index é reconstruído à parte
+      const p = parse(d.content);
+      let changed = false;
+      const body = p.body.replace(RENAME_LINK_RE, (full, text, target) => {
+        if (isExternal(target) || target.startsWith('#')) return full;
+        const [path0, anchor] = splitAnchor(target);
+        if (d.relPath === fromRel) {
+          // arquivo movido: recalcula seus próprios links relativos (a base mudou)
+          if (target.startsWith('/')) return full;
+          const id = resolveTarget(path0, fromRel);
+          if (!id) return full;
+          const nt = relativePath(dirOf(toRel), id + '.md') + (anchor ? '#' + anchor : '');
+          if (nt !== target) changed = true;
+          return '[' + text + '](' + nt + ')';
+        }
+        const id = resolveTarget(path0, d.relPath);
+        if (id !== fromId) return full;
+        let nt = target.startsWith('/') ? '/' + toRel : relativePath(dirOf(d.relPath), toRel);
+        nt += anchor ? '#' + anchor : '';
+        changed = true;
+        return '[' + text + '](' + nt + ')';
+      });
+      if (changed) out.push({ relPath: d.relPath, newContent: serialize(p.frontmatter, body) });
+    }
+    return out;
+  }
+
+  function appendLog(content, dateStr, entry) {
+    const bullet = '* ' + entry;
+    const dateHdr = '## ' + dateStr;
+    const lines = (content || '').split('\n');
+    const idx = lines.findIndex(l => l.trim() === dateHdr);
+    if (idx >= 0) {
+      let end = lines.length;
+      for (let i = idx + 1; i < lines.length; i++) { if (/^##\s/.test(lines[i])) { end = i; break; } }
+      let ins = end;
+      while (ins > idx + 1 && lines[ins - 1].trim() === '') ins--;
+      lines.splice(ins, 0, bullet);
+      return lines.join('\n');
+    }
+    const titleIdx = lines.findIndex(l => /^#\s/.test(l));
+    const block = [dateHdr, bullet];
+    if (titleIdx >= 0) {
+      let ins = titleIdx + 1;
+      if (lines[ins] !== undefined && lines[ins].trim() === '') ins++;
+      lines.splice(ins, 0, '', ...block);
+      const newEnd = ins + 1 + block.length;
+      if (lines[newEnd] !== undefined && /^##\s/.test(lines[newEnd])) {
+        lines.splice(newEnd, 0, '');
+      }
+      return lines.join('\n').replace(/\n{3,}/g, '\n\n');
+    }
+    return (block.join('\n') + '\n\n' + (content || '')).replace(/\n{3,}/g, '\n\n');
+  }
+
+  function mergeManagedBlock(content, listing) {
+    const inner = '\n' + (listing ? listing + '\n' : '');
+    const s = content.indexOf(MARK_START);
+    const e = content.indexOf(MARK_END);
+    if (s >= 0 && e > s) {
+      return content.slice(0, s + MARK_START.length) + inner + content.slice(e);
+    }
+    const sep = content.endsWith('\n') ? '\n' : '\n\n';
+    return content + sep + MARK_START + inner + MARK_END + '\n';
+  }
+
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles };
+
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,
-    extractLinks, resolveTarget, isExternal, buildGraph, validate
+    extractLinks, resolveTarget, isExternal, buildGraph, validate, auto
   };
 })(window);
