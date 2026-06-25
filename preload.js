@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('okf', {
   onUpdateStatus: (cb) => ipcRenderer.on('update:status', (_e, payload) => cb(payload)),
   openClaude: () => ipcRenderer.invoke('claude:open'),
   exportPdf: (payload) => ipcRenderer.invoke('pdf:export', payload),
+  openDocumentDialog: () => ipcRenderer.invoke('dialog:openDocument'),
+  readBinary: (filePath) => ipcRenderer.invoke('file:readBinary', filePath),
   onBundleChanged: (cb) => ipcRenderer.on('bundle:changed', () => cb()),
   git: {
     status: () => ipcRenderer.invoke('git:status'),

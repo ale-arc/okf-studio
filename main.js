@@ -72,6 +72,11 @@ function buildMenu() {
           click: () => mainWindow.webContents.send('menu:templates')
         },
         {
+          label: 'Importar documento…',
+          accelerator: 'CmdOrCtrl+I',
+          click: () => mainWindow.webContents.send('menu:import-doc')
+        },
+        {
           label: 'Salvar',
           accelerator: 'CmdOrCtrl+S',
           click: () => mainWindow.webContents.send('menu:save')
@@ -249,6 +254,28 @@ ipcMain.handle('dialog:openFolder', async () => {
   });
   if (res.canceled || !res.filePaths.length) return null;
   return res.filePaths[0];
+});
+
+ipcMain.handle('dialog:openDocument', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Selecione um documento para importar',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Documentos', extensions: ['pdf', 'docx', 'html', 'htm', 'txt'] },
+      { name: 'Todos', extensions: ['*'] }
+    ]
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  return res.filePaths[0];
+});
+
+ipcMain.handle('file:readBinary', async (_e, filePath) => {
+  const buf = await fsp.readFile(filePath);
+  return {
+    name: path.basename(filePath),
+    ext: path.extname(filePath).replace(/^\./, '').toLowerCase(),
+    bytes: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+  };
 });
 
 ipcMain.handle('bundle:read', async (_e, root) => {
