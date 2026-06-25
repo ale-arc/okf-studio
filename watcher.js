@@ -17,6 +17,13 @@ function createWatcher(onChange) {
       if (!root) return;
       w = chokidar.watch(root, { ignored, ignoreInitial: true });
       w.on('add', fire).on('change', fire).on('unlink', fire);
+      // Sem um listener de 'error', o EventEmitter relança o erro como exceção
+      // não tratada e derruba o app. Em pastas sincronizadas na nuvem (Google
+      // Drive, OneDrive) o lstat pode falhar com EINVAL em arquivos placeholder;
+      // registramos e ignoramos para não travar a vigilância da biblioteca.
+      w.on('error', (err) => {
+        try { console.error('[watcher] erro do sistema de arquivos ignorado:', (err && err.message) || err); } catch (_) {}
+      });
     },
     pause() { paused = true; clearTimeout(timer); },
     resume() { paused = false; },
