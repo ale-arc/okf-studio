@@ -172,6 +172,32 @@ async function openSample() {
   const res = await window.okf.readSample();
   loadBundle(res, 'Biblioteca de exemplo');
 }
+
+/* ---------- Nova biblioteca ---------- */
+let newLibDir = null;
+async function newLibrary() {
+  const dir = await window.okf.newLibraryDialog();
+  if (!dir) return;
+  newLibDir = dir;
+  $('nl-dir').textContent = 'Pasta: ' + dir;
+  $('nl-name').value = dir.split(/[\\/]/).pop() || 'Biblioteca';
+  $('newlib-modal').classList.remove('hidden');
+  $('nl-name').focus();
+}
+function closeNewLib() { $('newlib-modal').classList.add('hidden'); newLibDir = null; }
+async function doCreateLibrary() {
+  if (!newLibDir) return;
+  const name = $('nl-name').value.trim() || 'Biblioteca';
+  const files = OKF.auto.libraryFiles(name, todayStr());
+  const r = await window.okf.createLibrary({ dir: newLibDir, files });
+  if (!r || !r.ok) { toast('Erro: ' + ((r && r.error) || 'desconhecido'), 'bad'); return; }
+  const dir = newLibDir;
+  closeNewLib();
+  const res = await window.okf.readBundle(dir);
+  loadBundle(res, name);
+  toast('Biblioteca criada em ' + dir, 'good');
+}
+
 async function reload() {
   if (!state.root) return;
   const res = await window.okf.readBundle(state.root);
@@ -786,7 +812,8 @@ function paletteActions() {
     { label: 'Manual do OKF Studio', run: showManual, needsLib: false },
     { label: 'Alternar tema claro/escuro', run: toggleTheme, needsLib: false },
     { label: 'Abrir biblioteca…', run: openFolder, needsLib: false },
-    { label: 'Carregar biblioteca de exemplo', run: openSample, needsLib: false }
+    { label: 'Carregar biblioteca de exemplo', run: openSample, needsLib: false },
+    { label: 'Nova biblioteca…', run: newLibrary, needsLib: false }
   ].filter(a => !a.needsLib || lib).map(a => ({ kind: 'ação', label: a.label, sub: '', run: a.run }));
 }
 function paletteConcepts() {
@@ -1076,6 +1103,10 @@ function escapeAttr(s){ return escapeHtml(s); }
 function init() {
   $('btn-theme').onclick = toggleTheme;
   $('btn-open').onclick = openFolder;
+  $('btn-newlib').onclick = newLibrary;
+  $('nl-cancel').onclick = closeNewLib;
+  $('nl-ok').onclick = doCreateLibrary;
+  window.okf.onMenu('menu:new-library', newLibrary);
   $('btn-sample').onclick = openSample;
   $('btn-reload').onclick = reload;
   $('btn-new').onclick = openModal;
@@ -1168,7 +1199,7 @@ function init() {
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); openPalette(); return; }
-    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); closeRename(); closeTreeMenu(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); closeRename(); closeTreeMenu(); closeNewLib(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();

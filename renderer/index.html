@@ -13,6 +13,7 @@
     <div class="tools">
       <button id="btn-theme" title="Alternar tema claro/escuro">🌙</button>
       <button id="btn-open" title="Abrir pasta da biblioteca (Ctrl+O)">📂 Abrir</button>
+      <button id="btn-newlib" title="Criar uma biblioteca OKF nova">🆕 Nova</button>
       <button id="btn-sample" title="Carregar biblioteca de exemplo">✨ Exemplo</button>
       <button id="btn-reload" title="Recarregar (Ctrl+R)" disabled>↻</button>
       <span class="divider"></span>
@@ -231,6 +232,21 @@
       <div class="modal-actions">
         <button id="rn-cancel">Cancelar</button>
         <button id="rn-ok" class="primary">Mover</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nova biblioteca -->
+  <div id="newlib-modal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Nova biblioteca OKF</h2>
+      <p class="muted" id="nl-dir"></p>
+      <label>Nome da biblioteca
+        <input id="nl-name" type="text" placeholder="Minha Base de Conhecimento" />
+      </label>
+      <div class="modal-actions">
+        <button id="nl-cancel">Cancelar</button>
+        <button id="nl-ok" class="primary">Criar biblioteca</button>
       </div>
     </div>
   </div>
