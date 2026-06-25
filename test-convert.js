@@ -38,6 +38,41 @@ const { htmlToMarkdown } = require('./src/convert/html.js');
   has(htmlToMarkdown('<a href="https://x.com">link</a>'), '[link](https://x.com)', 'html: link');
 }
 
+// ---- Task B4: reconstructMarkdown ----
+const { reconstructMarkdown } = require('./src/convert/reconstruct.js');
+function it(str, x, y, fontSize, extra) { return Object.assign({ str, x, y, w: str.length * fontSize * 0.5, h: fontSize, fontSize, bold: false, italic: false }, extra || {}); }
+{
+  // Título grande + parágrafo normal
+  const md1 = reconstructMarkdown([
+    it('Capítulo 1', 50, 50, 24),
+    it('Texto normal do parágrafo.', 50, 90, 12)
+  ]);
+  has(md1, '# Capítulo 1', 'reconstruct: fonte grande vira heading');
+  has(md1, 'Texto normal do parágrafo.', 'reconstruct: parágrafo preservado');
+
+  // Itens na mesma linha (mesmo y) juntam-se
+  const md2 = reconstructMarkdown([ it('Olá ', 50, 50, 12), it('mundo', 90, 50, 12) ]);
+  has(md2, 'Olá mundo', 'reconstruct: itens na mesma linha juntam');
+
+  // Lista por marcador
+  const md3 = reconstructMarkdown([ it('• Item um', 50, 50, 12), it('• Item dois', 50, 70, 12) ]);
+  has(md3, '- Item um', 'reconstruct: bullet vira "-"');
+  has(md3, '- Item dois', 'reconstruct: 2º bullet');
+
+  // Tabela: 2 colunas alinhadas em x, 2 linhas
+  const md4 = reconstructMarkdown([
+    it('Nome', 50, 50, 12), it('Idade', 200, 50, 12),
+    it('Ana', 50, 70, 12),  it('30', 200, 70, 12)
+  ]);
+  has(md4, '| Nome | Idade |', 'reconstruct: tabela cabeçalho');
+  has(md4, '| --- | --- |', 'reconstruct: separador GFM');
+  has(md4, '| Ana | 30 |', 'reconstruct: linha da tabela');
+
+  // Negrito
+  const md5 = reconstructMarkdown([ it('forte', 50, 50, 12, { bold: true }) ]);
+  has(md5, '**forte**', 'reconstruct: negrito');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');
