@@ -25,8 +25,13 @@ conteúdo):
 - **Sentido de "automatizar":** manter `index.md`/`log.md`, scaffolding
   inteligente de frontmatter/diretórios, e renomear/mover com integridade.
 - **Gatilho:** automático nas ações do app **+** botão "Reconstruir índices".
-- **Scaffolding de biblioteca:** mínimo (`index.md` raiz + `log.md`) **+** cópia
-  do `CLAUDE.md`.
+- **Scaffolding de biblioteca:** mínimo (`index.md` raiz + `log.md`) **+** um
+  `CLAUDE.md` **enxuto** (só as regras do formato OKF).
+- **Conformidade total:** todo artefato gerado pelo app (scaffolding,
+  `index.md`, `log.md`, `CLAUDE.md`, links) **deve obedecer ao OKF v0.1** — uma
+  biblioteca recém-criada passa em `OKF.validate` com **0 erros**, e todos os
+  links gerados são **bundle-relativos** (começando com `/`), conforme manda o
+  `CLAUDE.md`.
 - **Granularidade do log:** **só estruturais** (criar/excluir/renomear/mover +
   criação da biblioteca). Edições de conteúdo não logam.
 - **Arquitetura:** abordagem **C (híbrida)** — lógica pura no `OKF` do renderer,
@@ -93,10 +98,11 @@ gerenciado** delimitado por marcadores HTML; tudo fora dele é preservado.
 - **Sem marcadores** (ex.: a `sample-library` atual, ou um index feito à mão):
   na primeira atualização, o app **insere o bloco no fim do arquivo**,
   preservando todo o texto existente. "Reconstruir índices" faz o mesmo.
-- **Formato do bullet:** `* [title](rel.md) - description.`
+- **Formato do bullet:** `* [title](/categoria/arquivo.md) - description.`
   - `title`: `frontmatter.title` (fallback: nome do arquivo sem `.md`).
   - `description`: `frontmatter.description` (se ausente, omite o ` - …`).
-  - `rel.md`: caminho relativo ao diretório do `index.md`.
+  - **Link bundle-relativo** (com `/` inicial), igual em todos os `index.md`
+    (raiz e subdiretório), em log e em cross-links — regra do `CLAUDE.md`.
   - **Ordem alfabética por título** (estável no git).
 
 ### Funções puras (em `OKF.auto`)
@@ -122,11 +128,17 @@ gerenciado** delimitado por marcadores HTML; tudo fora dele é preservado.
     e um bloco gerenciado vazio (`<!-- okf:index -->`/`<!-- /okf:index -->`).
   - `log.md`: `# Histórico de Atualizações` + `## <hoje>` +
     `* **Criação**: estrutura inicial da biblioteca com [índice raiz](/index.md).`
-  - Cópia do **`CLAUDE.md`** (empacotado como `extraResources`, à semelhança da
-    `sample-library`; em dev, lido de `./CLAUDE.md` ou de um template em
-    `tools/`).
+  - **`CLAUDE.md` enxuto** com **só as regras do formato OKF** (frontmatter
+    obrigatório/recomendado, links bundle-relativos `/…`, papel de
+    `index.md`/`log.md`). Para obedecer ao próprio OKF, ele leva frontmatter
+    conforme — ex.: `type: Referência`, `title: Regras do formato OKF`,
+    `description: …` — de modo que a biblioteca valide sem erros. Empacotado
+    como `extraResources` (um template em `tools/`, não o `CLAUDE.md` deste
+    repositório, que é mais extenso).
 - **Guarda:** recusa (com aviso) uma pasta que já contenha `index.md`/`log.md`
   ou `.md` conflitantes — evita sobrescrever uma biblioteca existente.
+- **Conformidade:** logo após o scaffolding, a biblioteca passa em
+  `OKF.validate` com **0 erros** (verificado em teste).
 
 ## Componente 3 — Criar conceito (scaffolding inteligente)
 
@@ -153,8 +165,10 @@ Estende o modal atual (`createConcept`):
 
 ## Componente 5 — Renomear / Mover (integridade de links)
 
-- **UI:** ação **"Renomear/Mover…"** no rodapé do conceito aberto. Coleta
-  `to` (novo caminho relativo) a partir de `from` (caminho atual).
+- **UI:** ação **"Renomear/Mover…"** no rodapé do conceito aberto **e** no
+  **menu de clique-direito da árvore** (sobre qualquer conceito). Coleta `to`
+  (novo caminho relativo) a partir de `from` (caminho atual). O mesmo menu de
+  contexto da árvore também oferece **Excluir** para consistência.
 - **Reescrita de links** (`OKF.auto.planRename(docs, from, to)`):
   - Para cada doc cujo corpo tenha um link que **resolve** (via
     `OKF.resolveTarget`) ao conceito movido: reescreve o alvo,
@@ -212,7 +226,10 @@ Funções puras novas em `OKF.auto`, testadas no estilo do `test-okf.js`
 
 - **Bloco gerenciado:** index sem marcadores → bloco inserido no fim, prosa
   preservada; index raiz com intro → intro e `okf_version` intactos; ordem
-  alfabética; bullet sem `description`.
+  alfabética; bullet sem `description`; links de bullet **bundle-relativos
+  `/…`**.
+- **Conformidade do scaffolding:** biblioteca recém-criada (com o `CLAUDE.md`
+  enxuto) passa em `OKF.validate` com **0 erros**.
 - **Log:** entrada no dia já existente apenda bullet; dia novo entra no topo;
   formato `## AAAA-MM-DD` + `* **<Ação>**:`.
 - **Rename:** reescrita de link absoluto, relativo e com âncora; reescrita dos
@@ -243,5 +260,6 @@ e acrescenta entrada no `log.md`.
   entradas de menu.
 - `preload.js` — expor `applyOps`, `createLibrary` e o diálogo.
 - `watcher.js` — `pause()`/`resume()`.
-- `package.json` — `CLAUDE.md` (ou template) em `extraResources`.
+- `tools/` — template do `CLAUDE.md` enxuto (regras do formato OKF, com
+  frontmatter conforme); `package.json` o inclui em `extraResources`.
 - `test-okf.js` / `test-renderer.js` — testes novos.
