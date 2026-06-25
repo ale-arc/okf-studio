@@ -321,12 +321,17 @@ ipcMain.handle('library:create', async (_e, { dir, files }) => {
   try {
     const conflicts = ['index.md', 'log.md', 'CLAUDE.md'].filter(f => fs.existsSync(path.join(dir, f)));
     if (conflicts.length) return { ok: false, error: 'A pasta já contém: ' + conflicts.join(', ') };
-    for (const f of (files || [])) {
-      const target = safeJoin(dir, f.relPath);
-      await fsp.mkdir(path.dirname(target), { recursive: true });
-      await fsp.writeFile(target, f.content, 'utf8');
+    libWatcher.pause();
+    try {
+      for (const f of (files || [])) {
+        const target = safeJoin(dir, f.relPath);
+        await fsp.mkdir(path.dirname(target), { recursive: true });
+        await fsp.writeFile(target, f.content, 'utf8');
+      }
+      await fsp.copyFile(claudeTemplatePath(), path.join(dir, 'CLAUDE.md'));
+    } finally {
+      libWatcher.resume();
     }
-    await fsp.copyFile(claudeTemplatePath(), path.join(dir, 'CLAUDE.md'));
     return { ok: true, root: dir };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e) };
