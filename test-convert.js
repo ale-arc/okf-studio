@@ -18,6 +18,14 @@ const { buildPdfHtml, PRINT_CSS } = require('./src/convert/pdf-html.js');
   ok(PRINT_CSS.includes('@page'), 'PRINT_CSS exporta o CSS de impressão');
 }
 
+// ---- Task B2: txtToMarkdown ----
+const { txtToMarkdown } = require('./src/convert/txt.js');
+{
+  ok(txtToMarkdown('linha 1\nlinha 2') === 'linha 1\nlinha 2\n', 'txt: preserva linhas e garante \\n final');
+  ok(txtToMarkdown('a\r\nb') === 'a\nb\n', 'txt: normaliza CRLF');
+  ok(txtToMarkdown('') === '', 'txt: vazio vira vazio');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');
