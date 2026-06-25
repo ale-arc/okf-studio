@@ -211,6 +211,59 @@
     return parts.join('\n\n');
   }
 
+  function protectedRanges(body) {
+    const ranges = [];
+    const add = (re) => { let m; while ((m = re.exec(body)) !== null) ranges.push([m.index, m.index + m[0].length]); };
+    add(/```[\s\S]*?```/g);          // blocos de código
+    add(/`[^`]*`/g);                 // código inline
+    add(/\[[^\]]*\]\([^)]*\)/g);     // links existentes
+    add(/\bhttps?:\/\/\S+/g);        // URLs
+    return ranges;
+  }
+  function inRanges(start, end, ranges) {
+    return ranges.some(([a, b]) => start < b && end > a);
+  }
+  function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  function suggestLinks(body, concepts, selfId) {
+    const ranges = protectedRanges(body);
+    // títulos mais longos primeiro (mais específicos)
+    const allCand = concepts
+      .filter(c => c.title && c.title.trim())
+      .map(c => ({ rel: c.relPath, title: String(c.title), isSelf: conceptId(c.relPath) === selfId }))
+      .sort((a, b) => b.title.length - a.title.length);
+    const out = [];
+    const taken = []; // ranges já sugeridos (evita sobreposição)
+    const seen = new Set();
+    for (const c of allCand) {
+      if (seen.has(c.rel)) continue;
+      const re = new RegExp('(^|[^\\p{L}\\p{N}_])(' + escapeRe(c.title) + ')(?![\\p{L}\\p{N}_])', 'giu');
+      let m;
+      while ((m = re.exec(body)) !== null) {
+        const start = m.index + m[1].length;
+        const end = start + m[2].length;
+        if (inRanges(start, end, ranges) || inRanges(start, end, taken)) continue;
+        taken.push([start, end]); // marca como ocupado mesmo que seja self
+        if (!c.isSelf) {
+          out.push({ text: m[2], start, end, targetRel: '/' + c.rel });
+          seen.add(c.rel);
+        }
+        break; // só a 1ª ocorrência por alvo
+      }
+      if (c.isSelf) seen.add(c.rel); // não re-processar self
+    }
+    return out.sort((a, b) => a.start - b.start);
+  }
+
+  function applySuggestions(body, suggestions) {
+    const sorted = [...suggestions].sort((a, b) => b.start - a.start); // da direita p/ esquerda
+    let out = body;
+    for (const s of sorted) {
+      out = out.slice(0, s.start) + '[' + s.text + '](' + s.targetRel + ')' + out.slice(s.end);
+    }
+    return out;
+  }
+
   function relativePath(fromDir, toRel) {
     const from = fromDir ? fromDir.split('/') : [];
     const to = toRel.split('/');
@@ -290,7 +343,7 @@
     return content + sep + MARK_START + inner + MARK_END + '\n';
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks };
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions };
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,

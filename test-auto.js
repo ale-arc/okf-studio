@@ -28,6 +28,25 @@ eq(A.bulletFor(doc('projetos/atlas.md', { type: 'Projeto', title: 'Projeto Atlas
    '* [Projeto Atlas](/projetos/atlas.md) - Migração.', 'bulletFor com descrição');
 eq(A.bulletFor(doc('a.md', { type: 'X', title: 'A' })), '* [A](/a.md)', 'bulletFor sem descrição');
 
+// ---- Task 6: cross-links ----
+const conceptsT6 = [
+  { relPath: 'projetos/atlas.md', title: 'Projeto Atlas' },
+  { relPath: 'processos/inc.md', title: 'Atlas' },
+];
+const body6 = 'Falamos do Projeto Atlas hoje. De novo Projeto Atlas. Em `Projeto Atlas` não. ' +
+              'Já linkado [Projeto Atlas](/projetos/atlas.md).';
+const sug = A.suggestLinks(body6, conceptsT6, 'outros/doc');
+eq(sug.filter(s => s.targetRel === '/projetos/atlas.md').length, 1, 'só a 1ª ocorrência por alvo');
+ok(sug[0].text === 'Projeto Atlas' && sug[0].targetRel === '/projetos/atlas.md', 'casa o título mais longo');
+ok(body6.slice(sug[0].start, sug[0].end) === 'Projeto Atlas', 'índices apontam para o trecho');
+
+const sugSelf = A.suggestLinks('Eu sou o Projeto Atlas.', conceptsT6, 'projetos/atlas');
+eq(sugSelf.length, 0, 'não sugere autolink');
+
+const applied = A.applySuggestions('Veja Projeto Atlas aqui.',
+  [{ text: 'Projeto Atlas', start: 5, end: 18, targetRel: '/projetos/atlas.md' }]);
+eq(applied, 'Veja [Projeto Atlas](/projetos/atlas.md) aqui.', 'applySuggestions insere o link');
+
 // ---- Task 5: relativePath + rename ----
 eq(A.relativePath('', 'projetos/x.md'), 'projetos/x.md', 'relativePath da raiz');
 eq(A.relativePath('projetos', 'processos/x.md'), '../processos/x.md', 'relativePath entre pastas');
