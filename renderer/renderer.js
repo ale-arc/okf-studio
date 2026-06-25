@@ -11,6 +11,7 @@ const state = {
   graph: null,
   editorMode: 'visual',
   editorBody: '',
+  linkSuggestions: [],
 };
 
 /* ---------- Modelos de conceito (por tipo) ---------- */
@@ -446,6 +447,7 @@ function openDoc(relPath) {
 }
 
 function renderConcept(doc) {
+  $('xlink-badge').classList.add('hidden'); $('xlink-panel').classList.add('hidden');
   $('render-mode').classList.remove('hidden');
   $('edit-mode').classList.add('hidden');
   $('btn-edit').classList.remove('hidden');
@@ -524,6 +526,66 @@ function rewireLinks(container, srcRel) {
   });
 }
 
+/* ---------- Sugestão de cross-links ---------- */
+function currentConceptsForLinks() {
+  return state.docs.filter(d => !d.reserved && d.relPath !== state.current)
+    .map(d => ({ relPath: d.relPath, title: parsedOf(d).frontmatter.title || baseNameOf(d.relPath).replace(/\.md$/i, '') }));
+}
+function refreshLinkSuggestions() {
+  if (!state.editing || !state.current) { $('xlink-badge').classList.add('hidden'); $('xlink-panel').classList.add('hidden'); return; }
+  const body = (state.editorMode === 'source' || (docByRel(state.current) || {}).reserved)
+    ? $('e-body').value
+    : (window.OKFEditor ? window.OKFEditor.getMarkdown() : state.editorBody);
+  const sugg = OKF.auto.suggestLinks(body || '', currentConceptsForLinks(), OKF.conceptId(state.current));
+  state.linkSuggestions = sugg;
+  const badge = $('xlink-badge');
+  if (sugg.length) { badge.textContent = '🔗 ' + sugg.length + ' sugestão(ões) de links'; badge.classList.remove('hidden'); }
+  else { badge.classList.add('hidden'); $('xlink-panel').classList.add('hidden'); }
+}
+function openLinkPanel() {
+  const sugg = state.linkSuggestions || [];
+  const list = $('xlink-list');
+  list.innerHTML = sugg.map((s, i) =>
+    `<div class="xlink-item" data-i="${i}"><code>${escapeHtml(s.text)}</code> → <span>${escapeHtml(s.targetRel)}</span>` +
+    `<span class="grow"></span><button data-acc="${i}">Aceitar</button><button data-dis="${i}">Dispensar</button></div>`).join('') ||
+    '<div class="muted">Nenhuma sugestão.</div>';
+  list.querySelectorAll('button[data-acc]').forEach(b => b.onclick = () => acceptSuggestion(+b.dataset.acc));
+  list.querySelectorAll('button[data-dis]').forEach(b => b.onclick = () => dismissSuggestion(+b.dataset.dis));
+  $('xlink-panel').classList.remove('hidden');
+}
+async function applyBodyEdit(newBody) {
+  state.editorBody = newBody;
+  if (state.editorMode === 'source' || (docByRel(state.current) || {}).reserved) {
+    $('e-body').value = newBody;
+  } else if (window.OKFEditor) {
+    await window.OKFEditor.destroy();
+    await window.OKFEditor.create($('milkdown'), newBody, { onChange: (md) => { state.editorBody = md; } });
+  }
+}
+async function acceptSuggestion(i) {
+  const sugg = state.linkSuggestions || [];
+  if (!sugg[i]) return;
+  const body = state.editorMode === 'source' ? $('e-body').value : (window.OKFEditor ? window.OKFEditor.getMarkdown() : state.editorBody);
+  const newBody = OKF.auto.applySuggestions(body, [sugg[i]]);
+  await applyBodyEdit(newBody);
+  refreshLinkSuggestions();
+  if ((state.linkSuggestions || []).length) openLinkPanel(); else $('xlink-panel').classList.add('hidden');
+}
+function dismissSuggestion(i) {
+  state.linkSuggestions = (state.linkSuggestions || []).filter((_, j) => j !== i);
+  if (state.linkSuggestions.length) openLinkPanel(); else $('xlink-panel').classList.add('hidden');
+  $('xlink-badge').textContent = '🔗 ' + state.linkSuggestions.length + ' sugestão(ões) de links';
+  if (!state.linkSuggestions.length) $('xlink-badge').classList.add('hidden');
+}
+async function acceptAllSuggestions() {
+  const sugg = state.linkSuggestions || [];
+  if (!sugg.length) return;
+  const body = state.editorMode === 'source' ? $('e-body').value : (window.OKFEditor ? window.OKFEditor.getMarkdown() : state.editorBody);
+  const newBody = OKF.auto.applySuggestions(body, sugg);
+  await applyBodyEdit(newBody);
+  refreshLinkSuggestions();
+}
+
 /* ---------- Edit ---------- */
 async function enterEdit() {
   const doc = state.docs.find(d => d.relPath === state.current);
@@ -582,6 +644,7 @@ async function enterEdit() {
   await window.OKFEditor.create($('milkdown'), state.editorBody, {
     onChange: (md) => { state.editorBody = md; }
   });
+  setTimeout(refreshLinkSuggestions, 0);
 }
 
 function setModeButtons(mode) {
@@ -659,6 +722,7 @@ async function setEditorMode(mode) {
   }
   state.editorMode = mode;
   setModeButtons(mode);
+  setTimeout(refreshLinkSuggestions, 0);
 }
 
 function currentBodyMarkdown(doc) {
@@ -1136,6 +1200,9 @@ function init() {
   $('btn-rename').onclick = () => openRename(state.current);
   $('rn-cancel').onclick = closeRename;
   $('rn-ok').onclick = doRename;
+  $('xlink-badge').onclick = openLinkPanel;
+  $('xlink-close').onclick = () => $('xlink-panel').classList.add('hidden');
+  $('xlink-all').onclick = acceptAllSuggestions;
   $('tree-menu').querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', () => {
     const rel = treeMenuRel; const act = b.dataset.act; closeTreeMenu();
     if (!rel) return;

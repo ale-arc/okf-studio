@@ -275,3 +275,22 @@ button.update:disabled{opacity:1;color:#06281c}
 }
 .tree-menu button:hover { background: var(--hover, rgba(255,255,255,.08)); }
 .tree-menu.hidden { display: none; }
+
+.xlink-badge {
+  margin-top: 8px;
+  background: var(--accent, #5340b5);
+  color: #fff; border: 0; border-radius: 6px;
+  padding: 6px 10px; cursor: pointer;
+}
+.xlink-badge.hidden, .xlink-panel.hidden { display: none; }
+.xlink-panel {
+  margin-top: 8px; border: 1px solid var(--line, #3a3b42);
+  border-radius: 8px; padding: 8px; background: var(--panel, #2a2b30);
+}
+.xlink-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.xlink-head .grow { flex: 1; }
+.xlink-list { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow: auto; }
+.xlink-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; }
+.xlink-item:hover { background: var(--hover, rgba(255,255,255,.06)); }
+.xlink-item .grow { flex: 1; }
+.xlink-item code { background: var(--hover, rgba(255,255,255,.08)); padding: 0 4px; border-radius: 4px; }
