@@ -906,6 +906,37 @@ async function doRename() {
   if (ok) toast('Movido para ' + toRel, 'good');
 }
 
+/* ---------- Reorganizar por tipo (migração legada, opcional) ---------- */
+function openReorg() {
+  if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
+  const plan = OKF.auto.planReorg(state.docs);
+  const hint = $('reorg-hint'); const list = $('reorg-list');
+  if (!plan.length) {
+    hint.textContent = 'Tudo já está organizado por tipo. Nada a mover.';
+    list.innerHTML = ''; $('reorg-ok').disabled = true;
+  } else {
+    hint.textContent = plan.length + ' conceito(s) serão movidos para a pasta do seu tipo:';
+    list.innerHTML = plan.map(p =>
+      `<div class="reorg-row"><code>${escapeHtml(p.from)}</code> → <code>${escapeHtml(p.to)}</code></div>`).join('');
+    $('reorg-ok').disabled = false;
+  }
+  $('reorg-modal').classList.remove('hidden');
+}
+function closeReorg() { $('reorg-modal').classList.add('hidden'); }
+async function applyReorg() {
+  const plan = OKF.auto.planReorg(state.docs);
+  closeReorg();
+  if (!plan.length) return;
+  let okCount = 0;
+  for (const p of plan) {
+    const logEntry = autoIndexEnabled()
+      ? '**Reorganização por tipo**: `' + p.from + '` → [' + p.title + '](/' + p.to + ').' : null;
+    const ok = await performMove(p.from, p.to, logEntry);
+    if (ok) okCount++;
+  }
+  toast('Reorganização concluída: ' + okCount + '/' + plan.length, 'good');
+}
+
 /* ---------- Delete ---------- */
 async function deleteCurrent() {
   const doc = state.docs.find(d => d.relPath === state.current);
@@ -936,6 +967,7 @@ function paletteActions() {
     { label: 'Claude Code (terminal)', run: openClaude, needsLib: true },
     { label: 'Recarregar biblioteca', run: reload, needsLib: true },
     { label: 'Reconstruir índices', run: rebuildIndexes, needsLib: true },
+    { label: 'Reorganizar por tipo (mover para a pasta do tipo)', run: openReorg, needsLib: true },
     { label: 'Gerenciar modelos', run: openTemplates, needsLib: false },
     { label: autoIndexEnabled() ? 'Índices automáticos: DESLIGAR' : 'Índices automáticos: LIGAR',
       run: () => { setAutoIndex(!autoIndexEnabled()); toast('Índices automáticos: ' + (autoIndexEnabled() ? 'ligados' : 'desligados'), 'good'); }, needsLib: false },
@@ -1342,6 +1374,8 @@ function init() {
   $('import-save').addEventListener('click', () => window.OKFConvertUI.saveImport());
   $('rn-cancel').onclick = closeRename;
   $('rn-ok').onclick = doRename;
+  $('reorg-cancel').onclick = closeReorg;
+  $('reorg-ok').onclick = applyReorg;
   $('xlink-badge').onclick = openLinkPanel;
   $('xlink-close').onclick = () => $('xlink-panel').classList.add('hidden');
   $('xlink-all').onclick = acceptAllSuggestions;
