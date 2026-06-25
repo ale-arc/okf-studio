@@ -902,7 +902,8 @@ function paletteActions() {
     { label: 'Alternar tema claro/escuro', run: toggleTheme, needsLib: false },
     { label: 'Abrir biblioteca…', run: openFolder, needsLib: false },
     { label: 'Carregar biblioteca de exemplo', run: openSample, needsLib: false },
-    { label: 'Nova biblioteca…', run: newLibrary, needsLib: false }
+    { label: 'Nova biblioteca…', run: newLibrary, needsLib: false },
+    { label: 'Exportar conceito como PDF', run: () => window.OKFConvertUI.exportCurrentPdf(), needsLib: true },
   ].filter(a => !a.needsLib || lib).map(a => ({ kind: 'ação', label: a.label, sub: '', run: a.run }));
 }
 function paletteConcepts() {
@@ -1301,6 +1302,7 @@ function init() {
   });
   $('btn-delete').onclick = deleteCurrent;
   $('btn-rename').onclick = () => openRename(state.current);
+  $('btn-export-pdf').addEventListener('click', () => window.OKFConvertUI.exportCurrentPdf());
   $('rn-cancel').onclick = closeRename;
   $('rn-ok').onclick = doRename;
   $('xlink-badge').onclick = openLinkPanel;
@@ -1340,6 +1342,7 @@ function init() {
   $('tpl-restore').onclick = restoreTpl;
   $('tpl-close').onclick = closeTemplates;
   window.okf.onMenu('menu:templates', openTemplates);
+  window.okf.onMenu('menu:export-pdf', () => window.OKFConvertUI.exportCurrentPdf());
   $('palette-input').addEventListener('input', (e) => renderPalette(e.target.value));
   $('palette-input').addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); movePalette(1); }
