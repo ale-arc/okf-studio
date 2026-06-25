@@ -73,6 +73,18 @@ function it(str, x, y, fontSize, extra) { return Object.assign({ str, x, y, w: s
   has(md5, '**forte**', 'reconstruct: negrito');
 }
 
+// ---- Task B5: assets ----
+const { slugifyAsset, rewriteImageLinks } = require('./src/convert/assets.js');
+{
+  ok(slugifyAsset('Minha Foto.PNG') === 'minha-foto.png', 'assets: slug minúsculo com hífens');
+  ok(slugifyAsset('a/b\\c.jpg') === 'a-b-c.jpg', 'assets: remove separadores');
+  const md = 'Veja ![diagrama](okf-img:img1) e ![](okf-img:img2).';
+  const out = rewriteImageLinks(md, { img1: 'assets/diagrama.png', img2: 'assets/img2.png' });
+  has(out, '![diagrama](assets/diagrama.png)', 'assets: reescreve 1º link');
+  has(out, '![](assets/img2.png)', 'assets: reescreve 2º link');
+  ok(!out.includes('okf-img:'), 'assets: não sobra placeholder');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');
