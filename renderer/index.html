@@ -25,14 +25,23 @@
       <button id="btn-git" title="Git: ver mudanças, commit e push" disabled>⎇ Git</button>
       <button id="btn-update" class="update hidden" title="Reiniciar para instalar a atualização baixada">⬆ Atualizar</button>
       <span class="grow"></span>
-      <input id="search" type="search" placeholder="Buscar por título, id, tag…" disabled />
-      <select id="type-filter" disabled><option value="">Todos os tipos</option></select>
     </div>
   </header>
 
   <main id="layout">
     <aside id="sidebar">
       <div id="bundle-name" class="bundle-name">Nenhuma biblioteca aberta</div>
+      <div id="sidebar-tools">
+        <input id="search" type="search" placeholder="Buscar título, tag, texto…" disabled />
+        <div class="sb-row">
+          <div id="group-seg" class="seg" role="group" aria-label="Agrupar por">
+            <button type="button" data-mode="type" class="on" disabled>Tipo</button>
+            <button type="button" data-mode="tag" disabled>Tag</button>
+            <button type="button" data-mode="flat" disabled>Lista</button>
+          </div>
+          <select id="type-filter" disabled><option value="">Todos os tipos</option></select>
+        </div>
+      </div>
       <div id="tree" class="tree"></div>
     </aside>
 
