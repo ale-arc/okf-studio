@@ -211,7 +211,18 @@
     return parts.join('\n\n');
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing };
+  function mergeManagedBlock(content, listing) {
+    const inner = '\n' + (listing ? listing + '\n' : '');
+    const s = content.indexOf(MARK_START);
+    const e = content.indexOf(MARK_END);
+    if (s >= 0 && e > s) {
+      return content.slice(0, s + MARK_START.length) + inner + content.slice(e);
+    }
+    const sep = content.endsWith('\n') ? '\n' : '\n\n';
+    return content + sep + MARK_START + inner + MARK_END + '\n';
+  }
+
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock };
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,

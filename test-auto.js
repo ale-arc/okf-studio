@@ -28,6 +28,21 @@ eq(A.bulletFor(doc('projetos/atlas.md', { type: 'Projeto', title: 'Projeto Atlas
    '* [Projeto Atlas](/projetos/atlas.md) - Migração.', 'bulletFor com descrição');
 eq(A.bulletFor(doc('a.md', { type: 'X', title: 'A' })), '* [A](/a.md)', 'bulletFor sem descrição');
 
+// ---- Task 3: bloco gerenciado ----
+const semMarcadores = '# Projetos\n\nTexto humano.\n';
+const merged1 = A.mergeManagedBlock(semMarcadores, '* [X](/projetos/x.md)');
+ok(merged1.startsWith('# Projetos\n\nTexto humano.\n'), 'preserva conteúdo existente');
+ok(merged1.includes(A.MARK_START + '\n* [X](/projetos/x.md)\n' + A.MARK_END), 'insere bloco com listing');
+
+const comMarcadores = 'topo\n' + A.MARK_START + '\nantigo\n' + A.MARK_END + '\nrodapé\n';
+const merged2 = A.mergeManagedBlock(comMarcadores, '* [Y](/y.md)');
+ok(merged2.includes('topo\n') && merged2.includes('rodapé\n'), 'preserva fora do bloco');
+ok(merged2.includes(A.MARK_START + '\n* [Y](/y.md)\n' + A.MARK_END), 'substitui só o miolo');
+ok(!merged2.includes('antigo'), 'remove conteúdo antigo do bloco');
+
+const vazio = A.mergeManagedBlock(comMarcadores, '');
+ok(vazio.includes(A.MARK_START + '\n' + A.MARK_END), 'listing vazio = bloco vazio');
+
 // ---- Task 2: listagens ----
 const docsT2 = [
   doc('processos/a.md', { type: 'Processo', title: 'Beta', description: 'B.' }),
