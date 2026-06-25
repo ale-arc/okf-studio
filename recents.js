@@ -51,4 +51,51 @@ function enrichExists(list, existsFn) {
   return (Array.isArray(list) ? list : []).map(e => Object.assign({}, e, { exists: !!fn(e.path) }));
 }
 
-module.exports = { CAP, sortAndCap, addEntry, removeEntry, toggleFavorite, enrichExists };
+function recentsFile() {
+  const { app } = require('electron');
+  return path.join(app.getPath('userData'), 'recent-libraries.json');
+}
+
+async function readStore(file) {
+  try {
+    const data = JSON.parse(await fsp.readFile(file, 'utf8'));
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    return []; // arquivo ausente ou inválido => lista vazia
+  }
+}
+
+async function writeStore(file, list) {
+  await fsp.mkdir(path.dirname(file), { recursive: true });
+  await fsp.writeFile(file, JSON.stringify(list, null, 2), 'utf8');
+}
+
+function registerRecentsHandlers(ipcMain) {
+  ipcMain.handle('recents:list', async () => {
+    const list = sortAndCap(await readStore(recentsFile()));
+    return enrichExists(list);
+  });
+  ipcMain.handle('recents:add', async (_e, { path: p, name }) => {
+    const file = recentsFile();
+    const list = addEntry(await readStore(file), { path: p, name }, Date.now());
+    await writeStore(file, list);
+    return enrichExists(list);
+  });
+  ipcMain.handle('recents:remove', async (_e, { path: p }) => {
+    const file = recentsFile();
+    const list = sortAndCap(removeEntry(await readStore(file), p));
+    await writeStore(file, list);
+    return enrichExists(list);
+  });
+  ipcMain.handle('recents:toggleFavorite', async (_e, { path: p }) => {
+    const file = recentsFile();
+    const list = toggleFavorite(await readStore(file), p);
+    await writeStore(file, list);
+    return enrichExists(list);
+  });
+}
+
+module.exports = {
+  CAP, sortAndCap, addEntry, removeEntry, toggleFavorite, enrichExists,
+  recentsFile, readStore, writeStore, registerRecentsHandlers
+};

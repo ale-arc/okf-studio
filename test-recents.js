@@ -58,3 +58,16 @@ const R = require('./recents.js');
 }
 
 console.log('test-recents (puro) OK');
+
+// readStore/writeStore: round-trip com arquivo temporário
+(async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'okf-recents-'));
+  const file = path.join(dir, 'recent-libraries.json');
+  assert.deepStrictEqual(await R.readStore(file), [], 'arquivo ausente => []');
+  await R.writeStore(file, [{ path: '/a', name: 'A', lastOpened: 1, favorite: true }]);
+  const back = await R.readStore(file);
+  assert.strictEqual(back.length, 1);
+  assert.strictEqual(back[0].path, '/a');
+  fs.rmSync(dir, { recursive: true, force: true });
+  console.log('test-recents (IO) OK');
+})().catch((e) => { console.error(e); process.exit(1); });
