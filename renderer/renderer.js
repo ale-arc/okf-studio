@@ -176,6 +176,78 @@ function fmtTimestamp(v) {
   return String(v);
 }
 
+/* ---------- Data relativa para os recentes ---------- */
+function relTime(ms, now) {
+  const t = Number(ms) || 0;
+  const ref = now || Date.now();
+  const s = Math.max(0, Math.floor((ref - t) / 1000));
+  if (s < 60) return 'agora';
+  const min = Math.floor(s / 60);
+  if (min < 60) return 'há ' + min + ' min';
+  const h = Math.floor(min / 60);
+  if (h < 24) return 'há ' + h + ' h';
+  const d = Math.floor(h / 24);
+  if (d === 1) return 'ontem';
+  if (d <= 7) return 'há ' + d + ' dias';
+  const dt = new Date(t);
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  return dd + '/' + mm + '/' + dt.getFullYear();
+}
+
+/* ---------- Tela inicial (bibliotecas recentes) ---------- */
+async function showStart() {
+  closeOverlays();
+  $('viewer').classList.add('hidden');
+  $('empty').classList.remove('hidden');
+  let list = [];
+  try { list = await window.okf.recents.list(); } catch (e) { list = []; }
+  renderRecents(list);
+}
+
+function renderRecents(list) {
+  const wrap = $('recent-list');
+  if (!wrap) return;
+  if (!list || !list.length) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  wrap.classList.remove('hidden');
+  wrap.innerHTML = list.map(e => {
+    const cls = 'recent-item' + (e.exists ? '' : ' missing');
+    const favIcon = e.exists ? (e.favorite ? '★' : '☆') : '⚠';
+    const when = e.exists ? escapeHtml(relTime(e.lastOpened)) : 'Pasta não encontrada';
+    return `<div class="${cls}" data-path="${escapeAttr(e.path)}" data-name="${escapeAttr(e.name || '')}" data-exists="${e.exists ? '1' : '0'}">` +
+      `<button class="recent-fav" title="Favoritar" data-fav="${escapeAttr(e.path)}">${favIcon}</button>` +
+      `<div class="recent-main"><div class="recent-name">${escapeHtml(e.name || baseNameOf(e.path))}</div>` +
+      `<div class="recent-path">${escapeHtml(e.path)}</div></div>` +
+      `<span class="recent-when">${when}</span>` +
+      `<button class="recent-remove" title="Remover da lista" data-remove="${escapeAttr(e.path)}">✕</button>` +
+      `</div>`;
+  }).join('');
+  wrap.querySelectorAll('.recent-item').forEach(el => el.addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-fav]') || ev.target.closest('[data-remove]')) return;
+    if (el.dataset.exists === '0') { toast('Pasta não encontrada', 'bad'); return; }
+    openRecent(el.dataset.path, el.dataset.name);
+  }));
+  wrap.querySelectorAll('[data-fav]').forEach(b => b.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    renderRecents(await window.okf.recents.toggleFavorite({ path: b.dataset.fav }));
+  }));
+  wrap.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    renderRecents(await window.okf.recents.remove({ path: b.dataset.remove }));
+  }));
+}
+
+async function openRecent(p, name) {
+  let res;
+  try { res = await window.okf.readBundle(p); }
+  catch (e) { toast('Não foi possível abrir a biblioteca.', 'bad'); return; }
+  const nm = name || p.split(/[\\/]/).pop();
+  loadBundle(res, nm);
+  await window.okf.recents.add({ path: p, name: nm });
+}
+
+function switchLibrary() { showStart(); }
+
 /* ---------- Toast ---------- */
 let toastTimer;
 function toast(msg, kind) {
@@ -191,7 +263,9 @@ async function openFolder() {
   const dir = await window.okf.openFolder();
   if (!dir) return;
   const res = await window.okf.readBundle(dir);
-  loadBundle(res, dir.split(/[\\/]/).pop());
+  const name = dir.split(/[\\/]/).pop();
+  loadBundle(res, name);
+  await window.okf.recents.add({ path: dir, name });
 }
 async function openSample() {
   const res = await window.okf.readSample();
@@ -220,6 +294,7 @@ async function doCreateLibrary() {
   closeNewLib();
   const res = await window.okf.readBundle(dir);
   loadBundle(res, name);
+  await window.okf.recents.add({ path: dir, name });
   toast('Biblioteca criada em ' + dir, 'good');
 }
 
@@ -975,6 +1050,7 @@ function paletteActions() {
     { label: 'Alternar tema claro/escuro', run: toggleTheme, needsLib: false },
     { label: 'Abrir biblioteca…', run: openFolder, needsLib: false },
     { label: 'Carregar biblioteca de exemplo', run: openSample, needsLib: false },
+    { label: 'Trocar biblioteca…', run: switchLibrary, needsLib: false },
     { label: 'Nova biblioteca…', run: newLibrary, needsLib: false },
     { label: 'Exportar conceito como PDF', run: () => window.OKFConvertUI.exportCurrentPdf(), needsLib: true },
     { label: 'Importar documento (PDF/DOCX/HTML/TXT)', run: () => window.OKFConvertUI.importDocument(), needsLib: true },
@@ -1359,6 +1435,7 @@ function init() {
   window.okf.onBundleChanged(() => { reloadFromDisk(); if (!$('git-view').classList.contains('hidden')) refreshGit(); });
   $('empty-open').onclick = openFolder;
   $('empty-sample').onclick = openSample;
+  $('empty-new').onclick = newLibrary;
   $('btn-edit').onclick = enterEdit;
   $('btn-save').onclick = saveEdit;
   $('btn-cancel').onclick = cancelEdit;
@@ -1425,6 +1502,7 @@ function init() {
   // menu events from main process
   window.okf.onMenu('menu:open-folder', openFolder);
   window.okf.onMenu('menu:open-sample', openSample);
+  window.okf.onMenu('menu:switch-library', switchLibrary);
   window.okf.onMenu('menu:new-concept', openModal);
   window.okf.onMenu('menu:save', () => { if (state.editing) saveEdit(); });
   window.okf.onMenu('menu:reload', reload);
@@ -1438,6 +1516,7 @@ function init() {
   loadVersion();
   wireUpdates();
   loadTemplates();
+  showStart();
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); openPalette(); return; }
