@@ -323,7 +323,8 @@ ipcMain.handle('fs:applyOps', async (_e, { root, ops }) => {
         const target = safeJoin(root, op.relPath);
         if (op.op === 'create' && fs.existsSync(target)) throw new Error('Já existe um arquivo em ' + op.relPath);
         await fsp.mkdir(path.dirname(target), { recursive: true });
-        await fsp.writeFile(target, op.content, 'utf8');
+        if (op.binary) await fsp.writeFile(target, Buffer.from(op.content));
+        else await fsp.writeFile(target, op.content, 'utf8');
       } else if (op.op === 'delete') {
         await fsp.rm(safeJoin(root, op.relPath), { force: true });
       } else {

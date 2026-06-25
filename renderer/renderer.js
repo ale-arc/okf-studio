@@ -904,6 +904,7 @@ function paletteActions() {
     { label: 'Carregar biblioteca de exemplo', run: openSample, needsLib: false },
     { label: 'Nova biblioteca…', run: newLibrary, needsLib: false },
     { label: 'Exportar conceito como PDF', run: () => window.OKFConvertUI.exportCurrentPdf(), needsLib: true },
+    { label: 'Importar documento (PDF/DOCX/HTML/TXT)', run: () => window.OKFConvertUI.importDocument(), needsLib: true },
   ].filter(a => !a.needsLib || lib).map(a => ({ kind: 'ação', label: a.label, sub: '', run: a.run }));
 }
 function paletteConcepts() {
@@ -1303,6 +1304,8 @@ function init() {
   $('btn-delete').onclick = deleteCurrent;
   $('btn-rename').onclick = () => openRename(state.current);
   $('btn-export-pdf').addEventListener('click', () => window.OKFConvertUI.exportCurrentPdf());
+  $('import-cancel').addEventListener('click', () => window.OKFConvertUI.closeImport());
+  $('import-save').addEventListener('click', () => window.OKFConvertUI.saveImport());
   $('rn-cancel').onclick = closeRename;
   $('rn-ok').onclick = doRename;
   $('xlink-badge').onclick = openLinkPanel;
@@ -1343,6 +1346,7 @@ function init() {
   $('tpl-close').onclick = closeTemplates;
   window.okf.onMenu('menu:templates', openTemplates);
   window.okf.onMenu('menu:export-pdf', () => window.OKFConvertUI.exportCurrentPdf());
+  window.okf.onMenu('menu:import-doc', () => window.OKFConvertUI.importDocument());
   $('palette-input').addEventListener('input', (e) => renderPalette(e.target.value));
   $('palette-input').addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); movePalette(1); }

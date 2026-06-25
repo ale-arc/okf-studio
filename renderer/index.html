@@ -327,6 +327,26 @@
     </div>
   </div>
 
+  <!-- Importar documento -->
+  <div id="import-modal" class="modal hidden">
+    <div class="modal-card import-card">
+      <h3 id="import-title">Importar documento</h3>
+      <div id="import-status" class="import-status"></div>
+      <progress id="import-progress" max="100" value="0" class="hidden"></progress>
+      <textarea id="import-md" class="import-md" spellcheck="false"
+                placeholder="O Markdown convertido aparecerá aqui para revisão…"></textarea>
+      <div class="modal-actions">
+        <label class="import-path-row full">Salvar em (caminho .md)
+          <input id="import-path" type="text" placeholder="referencias/meu-doc.md" />
+        </label>
+        <div class="row-buttons">
+          <button id="import-save" class="primary" disabled>💾 Salvar conceito</button>
+          <button id="import-cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="disk-banner" class="disk-banner hidden">
     <span>Este conceito mudou no disco.</span>
     <button id="disk-reload" class="primary">Recarregar</button>
