@@ -658,15 +658,27 @@ async function saveEdit() {
     content = OKF.serialize(fm, currentBodyMarkdown(doc));
   }
   try {
-    await window.okf.writeFile({ root: state.root, relPath: doc.relPath, content });
-    doc.content = content;
-    indexDocs();
-    buildTypeFilter();
-    renderTree();
-    state.editing = false;
+    if (doc.reserved || !autoIndexEnabled()) {
+      await window.okf.writeFile({ root: state.root, relPath: doc.relPath, content });
+      doc.content = content;
+      indexDocs(); buildTypeFilter(); renderTree();
+      state.editing = false;
+      if (!doc.reserved && state.editorMode === 'visual' && window.OKFEditor) { await window.OKFEditor.destroy(); }
+      renderConcept(doc);
+      toast('Salvo em ' + doc.relPath, 'good');
+      return;
+    }
+    const before = OKF.parse(doc.content).frontmatter;
+    const after = OKF.parse(content).frontmatter;
+    const metaChanged = (before.title || '') !== (after.title || '') ||
+                        (before.description || '') !== (after.description || '');
+    const nextDocs = state.docs.map(d => d.relPath === doc.relPath ? { ...d, content } : d);
+    const ops = [{ op: 'write', relPath: doc.relPath, content }];
+    if (metaChanged) ops.push(...indexOpsFrom(nextDocs)); // sem log: edição não é estrutural
     if (!doc.reserved && state.editorMode === 'visual' && window.OKFEditor) { await window.OKFEditor.destroy(); }
-    renderConcept(doc);
-    toast('Salvo em ' + doc.relPath, 'good');
+    state.editing = false;
+    const ok = await applyOpsAndRefresh(ops, doc.relPath);
+    if (ok) toast('Salvo em ' + doc.relPath, 'good');
   } catch (e) {
     toast('Erro ao salvar: ' + e.message, 'bad');
   }
@@ -678,14 +690,15 @@ async function deleteCurrent() {
   if (!doc || doc.reserved) return;
   const ok = await window.okf.confirm({ message: 'Excluir este conceito?', detail: doc.relPath });
   if (!ok) return;
-  try {
-    await window.okf.deleteFile({ root: state.root, relPath: doc.relPath });
-    state.docs = state.docs.filter(d => d.relPath !== doc.relPath);
-    indexDocs(); buildTypeFilter(); renderTree();
-    const next = state.docs.find(d => !d.reserved) || state.docs[0];
-    if (next) openDoc(next.relPath); else showEmpty();
-    toast('Conceito excluído', 'good');
-  } catch (e) { toast('Erro ao excluir: ' + e.message, 'bad'); }
+  const title = OKF.parse(doc.content).frontmatter.title || baseNameOf(doc.relPath).replace(/\.md$/i, '');
+  const nextDocs = state.docs.filter(d => d.relPath !== doc.relPath);
+  const ops = [{ op: 'delete', relPath: doc.relPath }];
+  if (autoIndexEnabled()) {
+    ops.push(...indexOpsFrom(nextDocs));
+    ops.push(logOpFrom(nextDocs, '**Exclusão**: removido `' + doc.relPath + '` (' + title + ').'));
+  }
+  const done = await applyOpsAndRefresh(ops, null);
+  if (done) toast('Conceito excluído', 'good');
 }
 
 /* ---------- New concept modal ---------- */
