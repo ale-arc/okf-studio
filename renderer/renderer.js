@@ -13,6 +13,7 @@ const state = {
   editorBody: '',
   linkSuggestions: [],
   templates: [],
+  collapsed: new Set(),
 };
 
 /* ---------- Modelos do usuário (fora da biblioteca) ---------- */
@@ -348,8 +349,11 @@ function loadBundle(res, name) {
   state.name = name;
   state.docs = res.docs || [];
   indexDocs();
+  state.collapsed = loadCollapsedSet();
   $('bundle-name').textContent = name + '  ·  ' + state.docs.length + ' arquivos';
   ['btn-reload','btn-new','btn-graph','btn-validate','btn-claude','btn-git','search','type-filter'].forEach(id => $(id).disabled = false);
+  document.querySelectorAll('#group-seg button').forEach(b => b.disabled = false);
+  updateGroupModeButtons();
   buildTypeFilter();
   renderTree();
   closeOverlays();
@@ -367,54 +371,88 @@ function indexDocs() {
   state.graph = OKF.buildGraph(state.docs);
 }
 
+/* ---------- Agrupamento e colapso da árvore ---------- */
+function currentGroupMode() {
+  try { const m = localStorage.getItem('okf-group-mode'); return (m === 'tag' || m === 'flat') ? m : 'type'; }
+  catch (e) { return 'type'; }
+}
+function setGroupMode(mode) { try { localStorage.setItem('okf-group-mode', mode); } catch (e) {} }
+function updateGroupModeButtons() {
+  const mode = currentGroupMode();
+  document.querySelectorAll('#group-seg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+}
+function collapseKey() { return 'okf-collapsed:' + (state.root || ''); }
+function loadCollapsedSet() {
+  let raw = null;
+  try { raw = localStorage.getItem(collapseKey()); } catch (e) {}
+  if (raw == null) return new Set([OKF.auto.SYSTEM_GROUP_KEY]); // 1ª vez: Sistema recolhido
+  try { const a = JSON.parse(raw); return new Set(Array.isArray(a) ? a : []); } catch (e) { return new Set(); }
+}
+function saveCollapsed(set) { try { localStorage.setItem(collapseKey(), JSON.stringify([...set])); } catch (e) {} }
+function toggleGroup(key) {
+  if (state.collapsed.has(key)) state.collapsed.delete(key); else state.collapsed.add(key);
+  saveCollapsed(state.collapsed);
+  renderTree();
+}
+
 /* ---------- Tree ---------- */
 function renderTree() {
   const tree = $('tree');
   tree.innerHTML = '';
   const q = ($('search').value || '').toLowerCase().trim();
   const typeF = $('type-filter').value;
+  const mode = currentGroupMode();
 
-  // group by top-level directory
-  const groups = new Map();
-  for (const d of state.docs) {
+  // 1) filtro (busca + tipo) — mesma semântica de antes
+  const filtered = state.docs.filter(d => {
     const p = parsedOf(d);
     const id = OKF.conceptId(d.relPath);
-    const title = p.frontmatter.title || d.name.replace(/\.md$/i,'');
-    const type = d.reserved ? '' : (p.frontmatter.type || 'Sem tipo');
-    const tags = Array.isArray(p.frontmatter.tags) ? p.frontmatter.tags.join(' ') : '';
-    // filters
-    if (typeF && type !== typeF) continue;
-    const body = (p.body || '').toLowerCase();
-    if (q && !(title.toLowerCase().includes(q) || id.toLowerCase().includes(q) || tags.toLowerCase().includes(q) || body.includes(q))) continue;
+    const title = p.frontmatter.title || d.name.replace(/\.md$/i, '');
+    const type = d.reserved ? '' : (p.frontmatter.type || '');
+    if (typeF && type !== typeF) return false;
+    if (q) {
+      const tags = Array.isArray(p.frontmatter.tags) ? p.frontmatter.tags.join(' ') : (p.frontmatter.tags || '');
+      const body = (p.body || '').toLowerCase();
+      if (!(title.toLowerCase().includes(q) || id.toLowerCase().includes(q) ||
+            String(tags).toLowerCase().includes(q) || body.includes(q))) return false;
+    }
+    return true;
+  });
 
-    const dir = d.relPath.includes('/') ? d.relPath.replace(/\/[^/]*$/,'') : '(raiz)';
-    if (!groups.has(dir)) groups.set(dir, []);
-    groups.get(dir).push({ d, title, type });
-  }
-
-  if (!groups.size) {
+  // 2) agrupar
+  const groups = OKF.auto.groupConcepts(filtered, mode);
+  if (!groups.some(g => g.items.length)) {
     tree.innerHTML = '<div class="dir">Nenhum resultado</div>';
     return;
   }
-  for (const [dir, items] of [...groups.entries()].sort()) {
-    const dh = document.createElement('div');
-    dh.className = 'dir';
-    dh.textContent = dir;
-    tree.appendChild(dh);
-    items.sort((a,b)=> a.d.reserved===b.d.reserved ? a.title.localeCompare(b.title) : (a.d.reserved?-1:1));
-    for (const it of items) {
+
+  // 3) desenhar
+  for (const g of groups) {
+    if (!g.items.length) continue;
+    const headless = (mode === 'flat' && !g.system); // lista plana não tem cabeçalho
+    let collapsed = false;
+    if (!headless) {
+      collapsed = state.collapsed.has(g.key);
+      const head = document.createElement('div');
+      head.className = 'group-head' + (collapsed ? ' collapsed' : '');
+      head.innerHTML = `<span class="caret">${collapsed ? '▸' : '▾'}</span>` +
+        `<span class="g-label"></span><span class="g-count">${g.items.length}</span>`;
+      head.querySelector('.g-label').textContent = g.label;
+      head.addEventListener('click', () => toggleGroup(g.key));
+      tree.appendChild(head);
+      if (collapsed) continue;
+    }
+    for (const it of g.items) {
       const node = document.createElement('div');
-      node.className = 'node' + (it.d.reserved ? ' reserved' : '') + (it.d.relPath===state.current ? ' active' : '');
-      node.dataset.rel = it.d.relPath;
-      node.innerHTML = `<span class="ic">${it.d.reserved ? '◷' : '📄'}</span>` +
-        `<span class="ttl"></span>` +
-        (it.type ? `<span class="badge"></span>` : '');
+      node.className = 'node' + (it.reserved ? ' reserved' : '') + (it.relPath === state.current ? ' active' : '');
+      node.dataset.rel = it.relPath;
+      const showBadge = it.type && mode !== 'type'; // no modo Tipo o badge é redundante
+      node.innerHTML = `<span class="ic">${it.reserved ? '◷' : '📄'}</span><span class="ttl"></span>` +
+        (showBadge ? `<span class="badge"></span>` : '');
       node.querySelector('.ttl').textContent = it.title;
-      if (it.type) node.querySelector('.badge').textContent = it.type;
-      node.addEventListener('click', () => openDoc(it.d.relPath));
-      if (!it.d.reserved) {
-        node.addEventListener('contextmenu', (e) => { e.preventDefault(); openTreeMenu(e, it.d.relPath); });
-      }
+      if (showBadge) node.querySelector('.badge').textContent = it.type;
+      node.addEventListener('click', () => openDoc(it.relPath));
+      if (!it.reserved) node.addEventListener('contextmenu', (e) => { e.preventDefault(); openTreeMenu(e, it.relPath); });
       tree.appendChild(node);
     }
   }
@@ -1499,6 +1537,9 @@ function init() {
   $('e-now').onclick = () => $('e-timestamp').value = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   $('search').addEventListener('input', renderTree);
   $('type-filter').addEventListener('change', renderTree);
+  document.querySelectorAll('#group-seg button').forEach(b => b.addEventListener('click', () => {
+    setGroupMode(b.dataset.mode); updateGroupModeButtons(); renderTree();
+  }));
 
   // menu events from main process
   window.okf.onMenu('menu:open-folder', openFolder);
