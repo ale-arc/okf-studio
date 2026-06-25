@@ -127,7 +127,7 @@ async function applyOpsAndRefresh(ops, selectRel) {
 async function refreshFromDisk(selectRel) {
   const res = await window.okf.readBundle(state.root);
   state.docs = res.docs || [];
-  indexDocs(); buildTypeFilter(); renderTree();
+  indexDocs(); buildTypeFilter(); renderTree(); refreshTypeDatalist();
   $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
   const want = selectRel || state.current;
   if (want && state.docs.some(d => d.relPath === want)) openDoc(want);
@@ -249,14 +249,14 @@ async function reloadFromDisk() {
   if (state.editing && state.current) {
     const old = state.docs.find(d => d.relPath === state.current);
     const cur = newDocs.find(d => d.relPath === state.current);
-    state.docs = newDocs; indexDocs(); buildTypeFilter(); renderTree();
+    state.docs = newDocs; indexDocs(); buildTypeFilter(); renderTree(); refreshTypeDatalist();
     $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
     if (cur && old && cur.content !== old.content) $('disk-banner').classList.remove('hidden');
     return;
   }
 
   // Sem edição: atualização completa preservando a seleção.
-  state.docs = newDocs; indexDocs(); buildTypeFilter(); renderTree();
+  state.docs = newDocs; indexDocs(); buildTypeFilter(); renderTree(); refreshTypeDatalist();
   $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
   if (state.current && state.docs.some(d => d.relPath === state.current)) {
     renderConcept(state.docs.find(d => d.relPath === state.current));
@@ -355,6 +355,14 @@ function buildTypeFilter() {
   }
   sel.innerHTML = '<option value="">Todos os tipos</option>' +
     [...types].sort().map(t => `<option>${escapeHtml(t)}</option>`).join('');
+}
+
+// Popula o <datalist id="type-options"> com os tipos existentes (rótulos canônicos).
+function refreshTypeDatalist() {
+  const dl = $('type-options');
+  if (!dl) return;
+  const labels = [...OKF.auto.typeLabelLookup(state.docs).values()].sort((a, b) => a.localeCompare(b));
+  dl.innerHTML = labels.map(t => `<option value="${escapeAttr(t)}"></option>`).join('');
 }
 
 /* ---------- Menu de contexto da árvore ---------- */
@@ -791,7 +799,7 @@ async function saveEdit() {
     if (doc.reserved || !autoIndexEnabled()) {
       await window.okf.writeFile({ root: state.root, relPath: doc.relPath, content });
       doc.content = content;
-      indexDocs(); buildTypeFilter(); renderTree();
+      indexDocs(); buildTypeFilter(); renderTree(); refreshTypeDatalist();
       state.editing = false;
       if (!doc.reserved && state.editorMode === 'visual' && window.OKFEditor) { await window.OKFEditor.destroy(); }
       renderConcept(doc);
@@ -800,8 +808,30 @@ async function saveEdit() {
     }
     const before = OKF.parse(doc.content).frontmatter;
     const after = OKF.parse(content).frontmatter;
+    // Troca de tipo que muda a pasta = mover o conceito para a pasta do novo tipo.
+    const folderChanged = !doc.reserved &&
+      OKF.auto.folderForType(before.type || '') !== OKF.auto.folderForType(after.type || '');
+    if (folderChanged) {
+      let dest = OKF.auto.moveTargetForType(doc.relPath, after.type || '');
+      let k = 2;
+      while (docByRel(dest) && dest !== doc.relPath) {
+        dest = OKF.auto.folderForType(after.type || '') + '/' +
+               baseNameOf(doc.relPath).replace(/\.md$/i, '') + '-' + (k++) + '.md';
+      }
+      doc.content = content; // o arquivo movido carrega o frontmatter novo
+      const titleMv = after.title || baseNameOf(dest).replace(/\.md$/i, '');
+      const logEntry = autoIndexEnabled()
+        ? '**Troca de tipo**: `' + doc.relPath + '` → [' + titleMv + '](/' + dest + ') (Tipo: ' + (after.type || '') + ').'
+        : null;
+      if (state.editorMode === 'visual' && window.OKFEditor) { await window.OKFEditor.destroy(); }
+      state.editing = false;
+      const okMove = await performMove(doc.relPath, dest, logEntry, content);
+      if (okMove) toast('Tipo alterado; movido para ' + dest, 'good');
+      return;
+    }
     const metaChanged = (before.title || '') !== (after.title || '') ||
-                        (before.description || '') !== (after.description || '');
+                        (before.description || '') !== (after.description || '') ||
+                        (before.type || '') !== (after.type || '');
     const nextDocs = state.docs.map(d => d.relPath === doc.relPath ? { ...d, content } : d);
     const ops = [{ op: 'write', relPath: doc.relPath, content }];
     if (metaChanged) ops.push(...indexOpsFrom(nextDocs)); // sem log: edição não é estrutural
@@ -812,6 +842,33 @@ async function saveEdit() {
   } catch (e) {
     toast('Erro ao salvar: ' + e.message, 'bad');
   }
+}
+
+/* ---------- Mover (núcleo compartilhado) ---------- */
+// Move fromRel -> toRel: reescreve links, regenera índices e (opcional) loga.
+// movedContentOverride: conteúdo já editado do arquivo movido (ex.: troca de tipo).
+async function performMove(fromRel, toRel, logEntry, movedContentOverride) {
+  const changes = OKF.auto.rewriteRenameLinks(state.docs, fromRel, toRel);
+  const movedChange = changes.find(c => c.relPath === fromRel);
+  const movedContent = movedContentOverride != null ? movedContentOverride
+    : (movedChange ? movedChange.newContent : docByRel(fromRel).content);
+  let nextDocs = state.docs.filter(d => d.relPath !== fromRel).map(d => {
+    const c = changes.find(x => x.relPath === d.relPath);
+    return c ? { ...d, content: c.newContent } : d;
+  });
+  nextDocs.push({ relPath: toRel, name: baseNameOf(toRel), reserved: OKF.isReserved(toRel), content: movedContent });
+  const ops = [{ op: 'create', relPath: toRel, content: movedContent }, { op: 'delete', relPath: fromRel }];
+  for (const c of changes) {
+    if (c.relPath === fromRel) continue;
+    const isIndex = c.relPath.split('/').pop().toLowerCase() === 'index.md';
+    if (isIndex && autoIndexEnabled()) continue; // indexOpsFrom regenera estes
+    ops.push({ op: 'write', relPath: c.relPath, content: c.newContent });
+  }
+  if (autoIndexEnabled()) {
+    ops.push(...indexOpsFrom(nextDocs));
+    if (logEntry) ops.push(logOpFrom(nextDocs, logEntry));
+  }
+  return applyOpsAndRefresh(ops, toRel);
 }
 
 /* ---------- Renomear / Mover ---------- */
@@ -837,31 +894,15 @@ async function doRename() {
   if (toRel === fromRel) { closeRename(); return; }
   if (docByRel(toRel)) { toast('Já existe um conceito em ' + toRel, 'bad'); return; }
 
-  const changes = OKF.auto.rewriteRenameLinks(state.docs, fromRel, toRel);
-  const movedChange = changes.find(c => c.relPath === fromRel);
-  const movedContent = movedChange ? movedChange.newContent : docByRel(fromRel).content;
-
-  let nextDocs = state.docs.filter(d => d.relPath !== fromRel).map(d => {
-    const c = changes.find(x => x.relPath === d.relPath);
-    return c ? { ...d, content: c.newContent } : d;
-  });
-  nextDocs.push({ relPath: toRel, name: baseNameOf(toRel), reserved: OKF.isReserved(toRel), content: movedContent });
-
-  const ops = [{ op: 'create', relPath: toRel, content: movedContent }, { op: 'delete', relPath: fromRel }];
-  for (const c of changes) {
-    if (c.relPath === fromRel) continue;
-    ops.push({ op: 'write', relPath: c.relPath, content: c.newContent });
-  }
-  if (autoIndexEnabled()) {
-    ops.push(...indexOpsFrom(nextDocs));
-    const sameDir = (fromRel.includes('/') ? fromRel.replace(/\/[^/]*$/, '') : '') ===
-                    (toRel.includes('/') ? toRel.replace(/\/[^/]*$/, '') : '');
-    const title = OKF.parse(movedContent).frontmatter.title || baseNameOf(toRel).replace(/\.md$/i, '');
-    const verbo = sameDir ? 'Renomeação' : 'Movimentação';
-    ops.push(logOpFrom(nextDocs, '**' + verbo + '**: `' + fromRel + '` → [' + title + '](/' + toRel + ').'));
-  }
+  const sameDir = (fromRel.includes('/') ? fromRel.replace(/\/[^/]*$/, '') : '') ===
+                  (toRel.includes('/') ? toRel.replace(/\/[^/]*$/, '') : '');
+  const movedContent = docByRel(fromRel).content;
+  const title = OKF.parse(movedContent).frontmatter.title || baseNameOf(toRel).replace(/\.md$/i, '');
+  const verbo = sameDir ? 'Renomeação' : 'Movimentação';
+  const logEntry = autoIndexEnabled()
+    ? '**' + verbo + '**: `' + fromRel + '` → [' + title + '](/' + toRel + ').' : null;
   closeRename();
-  const ok = await applyOpsAndRefresh(ops, toRel);
+  const ok = await performMove(fromRel, toRel, logEntry);
   if (ok) toast('Movido para ' + toRel, 'good');
 }
 
@@ -950,34 +991,27 @@ function activatePalette(i) {
 
 function openModal() {
   if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
-  ['m-path', 'm-type', 'm-title', 'm-description', 'm-tags'].forEach(id => $(id).value = '');
+  ['m-type', 'm-title', 'm-description', 'm-tags'].forEach(id => $(id).value = '');
   const tplSel = $('m-template');
   tplSel.innerHTML = state.templates.map(t => `<option>${escapeHtml(t.name)}</option>`).join('');
   tplSel.value = state.templates.some(t => t.name === 'Em branco') ? 'Em branco'
     : (state.templates[0] ? state.templates[0].name : '');
   applyTemplateToForm(tplSel.value);
-  // categorias = pastas de topo existentes + opção de nova
-  const tops = new Set();
-  for (const d of state.docs) { if (!d.reserved && d.relPath.includes('/')) tops.add(d.relPath.split('/')[0]); }
-  const cat = $('m-category');
-  cat.innerHTML = '<option value="">(raiz)</option>' +
-    [...tops].sort().map(t => `<option>${escapeHtml(t)}</option>`).join('') +
-    '<option value="__new">+ nova categoria…</option>';
-  cat.value = '';
+  refreshTypeDatalist();
   $('modal').classList.remove('hidden');
-  $('m-path').focus();
+  $('m-type').focus();
 }
 function closeModal(){ $('modal').classList.add('hidden'); }
 async function createConcept() {
-  let rel = $('m-path').value.trim().replace(/^\/+/, '');
-  const type = $('m-type').value.trim();
-  if (!rel) { toast('Informe o caminho do arquivo.', 'bad'); return; }
-  if (!rel.toLowerCase().endsWith('.md')) rel += '.md';
-  if (!type) { toast('O campo "type" é obrigatório.', 'bad'); return; }
+  const typeRaw = $('m-type').value.trim();
+  if (!typeRaw) { toast('O campo "type" é obrigatório.', 'bad'); return; }
+  const type = OKF.auto.canonicalType(typeRaw, state.docs);
+  const title = $('m-title').value.trim();
+  if (!title) { toast('Informe o título.', 'bad'); return; }
+  const taken = new Set(state.docs.map(d => d.relPath));
+  const rel = OKF.auto.pathForConcept(type, title, taken);
   if (docByRel(rel)) { toast('Já existe um conceito em ' + rel, 'bad'); return; }
-  const fm = { type };
-  const title = $('m-title').value.trim() || baseNameOf(rel).replace(/\.md$/i, '');
-  fm.title = title;
+  const fm = { type, title };
   if ($('m-description').value.trim()) fm.description = $('m-description').value.trim();
   const tags = $('m-tags').value.split(',').map(s => s.trim()).filter(Boolean);
   if (tags.length) fm.tags = tags;
@@ -1327,16 +1361,6 @@ function init() {
   $('manual-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('m-cancel').onclick = closeModal;
   $('m-create').onclick = createConcept;
-  $('m-category').addEventListener('change', () => {
-    const cat = $('m-category');
-    let dir = cat.value;
-    if (dir === '__new') {
-      dir = (window.prompt('Nome da nova categoria (pasta):') || '').trim().replace(/[\\/]+$/, '');
-      if (!dir) { cat.value = ''; return; }
-    }
-    const file = baseNameOf($('m-path').value.trim() || 'novo.md');
-    $('m-path').value = dir ? dir + '/' + file : file;
-  });
   $('m-template').addEventListener('change', () => applyTemplateToForm($('m-template').value));
   $('m-templates-manage').onclick = openTemplates;
   $('tpl-new').onclick = clearTplForm;
