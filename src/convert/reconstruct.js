@@ -16,13 +16,16 @@ function groupLines(items) {
   return lines;
 }
 
+const LIGATURE = /^(fi|fl|ff|ffi|ffl|ﬀ|ﬁ|ﬂ|ﬃ|ﬄ)$/i;
 function lineText(line) {
   let out = '';
   let prev = null;
   for (const it of line.items) {
     if (prev) {
       const gap = it.x - (prev.x + prev.w);
-      if (gap > prev.fontSize * 0.3) out += ' ';
+      const ligature = LIGATURE.test(it.str.trim()) || LIGATURE.test(prev.str.trim());
+      const thresh = (ligature ? 0.6 : 0.3) * prev.fontSize;
+      if (gap > thresh) out += ' ';
     }
     out += emph(it);
     prev = it;

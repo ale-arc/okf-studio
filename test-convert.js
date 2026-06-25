@@ -85,6 +85,14 @@ const { slugifyAsset, rewriteImageLinks } = require('./src/convert/assets.js');
   ok(!out.includes('okf-img:'), 'assets: não sobra placeholder');
 }
 
+// ---- R1: ligaduras ----
+const { reconstructMarkdown: _rmLig } = require('./src/convert/reconstruct.js');
+{
+  const md = _rmLig([ it('cientí', 50, 50, 12), it('fi', 78, 50, 12), it('ca', 86, 50, 12) ]);
+  has(md, 'científica', 'ligadura: religa fi sem espaço');
+  ok(!/cient[íi]\s+fi/.test(md), 'ligadura: não deixa "cientí fi"');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');
