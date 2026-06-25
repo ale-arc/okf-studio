@@ -1372,6 +1372,8 @@ function init() {
   $('btn-export-pdf').addEventListener('click', () => window.OKFConvertUI.exportCurrentPdf());
   $('import-cancel').addEventListener('click', () => window.OKFConvertUI.closeImport());
   $('import-save').addEventListener('click', () => window.OKFConvertUI.saveImport());
+  $('import-mode-visual').addEventListener('click', () => window.OKFConvertUI.setImportMode('visual'));
+  $('import-mode-source').addEventListener('click', () => window.OKFConvertUI.setImportMode('source'));
   $('rn-cancel').onclick = closeRename;
   $('rn-ok').onclick = doRename;
   $('reorg-cancel').onclick = closeReorg;

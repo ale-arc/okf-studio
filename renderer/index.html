@@ -341,11 +341,16 @@
       <h3 id="import-title">Importar documento</h3>
       <div id="import-status" class="import-status"></div>
       <progress id="import-progress" max="100" value="0" class="hidden"></progress>
-      <textarea id="import-md" class="import-md" spellcheck="false"
+      <div class="import-toolbar">
+        <button type="button" id="import-mode-visual" class="on">👁 Visual</button>
+        <button type="button" id="import-mode-source">&lt;&gt; Código</button>
+      </div>
+      <div id="import-editor" class="milkdown-host"></div>
+      <textarea id="import-md" class="import-md hidden" spellcheck="false"
                 placeholder="O Markdown convertido aparecerá aqui para revisão…"></textarea>
       <div class="modal-actions">
-        <label class="import-path-row full">Salvar em (caminho .md)
-          <input id="import-path" type="text" placeholder="referencias/meu-doc.md" />
+        <label class="import-path-row full">Tipo (type) <span class="req">*</span>
+          <input id="import-type" type="text" list="type-options" placeholder="Referência" />
         </label>
         <div class="row-buttons">
           <button id="import-save" class="primary" disabled>💾 Salvar conceito</button>
