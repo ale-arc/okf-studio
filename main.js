@@ -9,6 +9,7 @@ const fsp = fs.promises;
 const { createWatcher } = require('./watcher.js');
 const { registerGitHandlers } = require('./git.js');
 const { registerTemplateHandlers } = require('./templates.js');
+const { registerPdfHandlers } = require('./convert-pdf.js');
 
 let mainWindow = null;
 let manualUpdateCheck = false; // true when the user clicked "Verificar atualizações"
@@ -71,9 +72,19 @@ function buildMenu() {
           click: () => mainWindow.webContents.send('menu:templates')
         },
         {
+          label: 'Importar documento…',
+          accelerator: 'CmdOrCtrl+I',
+          click: () => mainWindow.webContents.send('menu:import-doc')
+        },
+        {
           label: 'Salvar',
           accelerator: 'CmdOrCtrl+S',
           click: () => mainWindow.webContents.send('menu:save')
+        },
+        {
+          label: 'Exportar como PDF…',
+          accelerator: 'CmdOrCtrl+E',
+          click: () => mainWindow.webContents.send('menu:export-pdf')
         },
         { type: 'separator' },
         { role: 'quit', label: 'Sair' }
@@ -245,6 +256,28 @@ ipcMain.handle('dialog:openFolder', async () => {
   return res.filePaths[0];
 });
 
+ipcMain.handle('dialog:openDocument', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Selecione um documento para importar',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Documentos', extensions: ['pdf', 'docx', 'html', 'htm', 'txt'] },
+      { name: 'Todos', extensions: ['*'] }
+    ]
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  return res.filePaths[0];
+});
+
+ipcMain.handle('file:readBinary', async (_e, filePath) => {
+  const buf = await fsp.readFile(filePath);
+  return {
+    name: path.basename(filePath),
+    ext: path.extname(filePath).replace(/^\./, '').toLowerCase(),
+    bytes: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+  };
+});
+
 ipcMain.handle('bundle:read', async (_e, root) => {
   const docs = await walk(root);
   currentRoot = root;
@@ -290,7 +323,8 @@ ipcMain.handle('fs:applyOps', async (_e, { root, ops }) => {
         const target = safeJoin(root, op.relPath);
         if (op.op === 'create' && fs.existsSync(target)) throw new Error('Já existe um arquivo em ' + op.relPath);
         await fsp.mkdir(path.dirname(target), { recursive: true });
-        await fsp.writeFile(target, op.content, 'utf8');
+        if (op.binary) await fsp.writeFile(target, Buffer.from(op.content));
+        else await fsp.writeFile(target, op.content, 'utf8');
       } else if (op.op === 'delete') {
         await fsp.rm(safeJoin(root, op.relPath), { force: true });
       } else {
@@ -379,6 +413,7 @@ ipcMain.handle('update:install', async () => { setImmediate(() => autoUpdater.qu
 
 registerGitHandlers(ipcMain, () => currentRoot);
 registerTemplateHandlers(ipcMain);
+registerPdfHandlers(ipcMain, () => currentRoot);
 
 app.whenReady().then(() => {
   createWindow();

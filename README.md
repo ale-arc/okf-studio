@@ -67,6 +67,14 @@ arquivos `.md` que você (e agentes de IA como o Claude) podem ler e manter.
   conceito movido, preservando o estilo (absoluto/relativo) e as âncoras.
 - **Sugestão de cross-links** — ao editar, o app aponta menções a outros
   conceitos e oferece transformá-las em links (com sua confirmação).
+- **Importar documento** — converte **PDF, DOCX, HTML e TXT** em Markdown
+  localmente (sem enviar nada para a nuvem), com **OCR** para PDFs escaneados e
+  heurística de **tabelas/títulos/listas**. O resultado abre num **preview** para
+  você revisar e salvar como conceito; imagens embutidas (DOCX) vão para uma
+  subpasta `assets/`. Em **Arquivo ▸ Importar documento…** (Ctrl+I) ou pela paleta.
+- **Exportar como PDF** — gera um PDF do conceito atual usando o Chromium
+  embutido (A4, tema claro), fiel à visualização. Em **Arquivo ▸ Exportar como
+  PDF…** (Ctrl+E), pelo botão **⭳ PDF** no conceito, ou pela paleta.
 
 ---
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;" />
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' blob:; worker-src 'self' blob:; img-src 'self' data: blob:;" />
   <title>OKF Studio</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -57,6 +57,7 @@
             <button id="btn-save" class="primary hidden">💾 Salvar</button>
             <button id="btn-cancel" class="hidden">Cancelar</button>
             <button id="btn-rename">✏ Renomear/Mover</button>
+            <button id="btn-export-pdf" title="Exportar este conceito como PDF (Ctrl+E)">⭳ PDF</button>
             <button id="btn-delete" class="danger">🗑 Excluir</button>
           </div>
         </div>
@@ -323,6 +324,26 @@
     <div class="modal-card palette-card">
       <input id="palette-input" type="text" placeholder="Ir para conceito ou ação…" autocomplete="off" />
       <div id="palette-list" class="palette-list"></div>
+    </div>
+  </div>
+
+  <!-- Importar documento -->
+  <div id="import-modal" class="modal hidden">
+    <div class="modal-card import-card">
+      <h3 id="import-title">Importar documento</h3>
+      <div id="import-status" class="import-status"></div>
+      <progress id="import-progress" max="100" value="0" class="hidden"></progress>
+      <textarea id="import-md" class="import-md" spellcheck="false"
+                placeholder="O Markdown convertido aparecerá aqui para revisão…"></textarea>
+      <div class="modal-actions">
+        <label class="import-path-row full">Salvar em (caminho .md)
+          <input id="import-path" type="text" placeholder="referencias/meu-doc.md" />
+        </label>
+        <div class="row-buttons">
+          <button id="import-save" class="primary" disabled>💾 Salvar conceito</button>
+          <button id="import-cancel">Cancelar</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -593,6 +614,8 @@ mudanças e poderá sincronizar entre máquinas.
   <script src="../node_modules/@antv/g6/dist/g6.min.js"></script>
   <script src="okf.js"></script>
   <script src="vendor/editor.bundle.js"></script>
+  <script src="vendor/convert.bundle.js"></script>
+  <script src="convert-ui.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

@@ -19,6 +19,9 @@ contextBridge.exposeInMainWorld('okf', {
   installUpdate: () => ipcRenderer.invoke('update:install'),
   onUpdateStatus: (cb) => ipcRenderer.on('update:status', (_e, payload) => cb(payload)),
   openClaude: () => ipcRenderer.invoke('claude:open'),
+  exportPdf: (payload) => ipcRenderer.invoke('pdf:export', payload),
+  openDocumentDialog: () => ipcRenderer.invoke('dialog:openDocument'),
+  readBinary: (filePath) => ipcRenderer.invoke('file:readBinary', filePath),
   onBundleChanged: (cb) => ipcRenderer.on('bundle:changed', () => cb()),
   git: {
     status: () => ipcRenderer.invoke('git:status'),
@@ -37,7 +40,7 @@ contextBridge.exposeInMainWorld('okf', {
     const valid = [
       'menu:open-folder', 'menu:open-sample', 'menu:new-concept', 'menu:new-library',
       'menu:save', 'menu:reload', 'menu:validate', 'menu:graph', 'menu:about', 'menu:manual',
-      'menu:rebuild-indexes', 'menu:templates'
+      'menu:rebuild-indexes', 'menu:templates', 'menu:export-pdf', 'menu:import-doc'
     ];
     if (valid.includes(channel)) ipcRenderer.on(channel, () => cb());
   }
