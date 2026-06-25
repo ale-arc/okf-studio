@@ -1,6 +1,7 @@
 'use strict';
 // Smoke test: load the real renderer in a hidden window and assert globals/CSP.
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
+const { registerTemplateHandlers } = require('./templates.js');
 const path = require('path');
 
 app.whenReady().then(async () => {
@@ -19,6 +20,8 @@ app.whenReady().then(async () => {
     if (/Content Security Policy|Refused to load/i.test(message)) cspViolations.push(message);
   });
 
+  registerTemplateHandlers(ipcMain);
+
   await win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   const result = await win.webContents.executeJavaScript(`(() => ({
@@ -36,7 +39,6 @@ app.whenReady().then(async () => {
     gitBridge: !!(window.okf && window.okf.git && typeof window.okf.git.status==='function' &&
       typeof window.okf.git.commit==='function'),
     paletteUI: !!(document.getElementById('palette') && document.getElementById('palette-input')),
-    templates: !!(window.__okfTemplates && Object.keys(window.__okfTemplates).length >= 6),
     renderHtml: (window.marked ? window.marked.parse('# H\\n\\n| a | b |\\n|---|---|\\n| 1 | 2 |') : ''),
     themeToggle: (() => {
       const before = document.documentElement.getAttribute('data-theme');
@@ -47,6 +49,12 @@ app.whenReady().then(async () => {
     })(),
     editorGlobal: !!(window.OKFEditor && typeof window.OKFEditor.create === 'function' && typeof window.OKFEditor.getMarkdown === 'function' && typeof window.OKFEditor.destroy === 'function'),
   }))()`);
+
+  const templatesCheck = await win.webContents.executeJavaScript(`(async () => {
+    const t = await window.okf.templates.list();
+    return Array.isArray(t) && t.length >= 6;
+  })()`);
+  console.log('  modelos (bridge):', templatesCheck);
 
   const roundtrip = await win.webContents.executeJavaScript(`(async () => {
     const host = document.createElement('div');
@@ -117,7 +125,7 @@ app.whenReady().then(async () => {
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
   const okTheme = result.themeToggle === true;
   const okEditor = result.editorGlobal === true;
-  const okExtra = result.paletteUI === true && result.templates === true;
+  const okExtra = result.paletteUI === true && templatesCheck === true;
 
   console.log('RENDERER SMOKE TEST');
   console.log('  globals:', JSON.stringify({
@@ -128,7 +136,7 @@ app.whenReady().then(async () => {
   console.log('  markdown render (table+h1):', okRender);
   console.log('  theme toggle muda data-theme:', result.themeToggle);
   console.log('  window.OKFEditor presente:', result.editorGlobal);
-  console.log('  paleta + modelos:', result.paletteUI, result.templates);
+  console.log('  paleta + modelos:', result.paletteUI, templatesCheck);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
   console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');

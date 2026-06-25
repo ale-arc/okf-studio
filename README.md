@@ -51,8 +51,11 @@ arquivos `.md` que você (e agentes de IA como o Claude) podem ler e manter.
   (não só título/tags).
 - **Paleta de comandos** (`Ctrl+P`) — pular para qualquer conceito ou disparar
   ações pelo teclado.
-- **Modelos por tipo** — ao criar um conceito, escolha um modelo (Projeto,
-  Processo, Métrica, Referência, Playbook) que gera a estrutura do corpo.
+- **Modelos do usuário** — ao criar um conceito, escolha um modelo que gera a
+  estrutura do corpo e pré-preenche `type`/`description`/`tags`. Os modelos são
+  **seus** (ficam em `%APPDATA%/OKF Studio/templates/`, não na biblioteca) e
+  valem para qualquer biblioteca. Gerencie-os (criar, editar, renomear, excluir,
+  restaurar padrões) em **Arquivo ▸ Modelos…** ou pelo ⚙ no "Novo conceito".
 - **Criar biblioteca nova** — o botão **🆕 Nova** (ou Arquivo ▸ Nova biblioteca…)
   cria, numa pasta vazia, o `index.md` raiz, o `log.md` e um `CLAUDE.md` enxuto
   com as regras do formato — pronta e conforme ao OKF v0.1.
