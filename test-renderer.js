@@ -102,6 +102,46 @@ app.whenReady().then(async () => {
   const okCommands = commands && commands.h1 && commands.task && commands.table;
   console.log('  toolbar commands:', JSON.stringify(commands));
 
+  const tableUI = await win.webContents.executeJavaScript(`(async () => {
+    const host = document.createElement('div'); host.className = 'milkdown-host';
+    document.body.appendChild(host);
+    await window.OKFEditor.create(host, '| a | b |\\n| --- | --- |\\n| 1 | 2 |\\n\\ntexto fora\\n', {});
+    const view = window.OKFEditor.getView();
+    const TextSelection = view.state.selection.constructor;
+    const setCursorAt = (predicate) => {
+      let target = null;
+      view.state.doc.descendants((node, pos) => { if (target === null && predicate(node)) target = pos + 1; });
+      if (target === null) return false;
+      view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(target))));
+      return true;
+    };
+    const bar = () => host.querySelector('.okf-table-toolbar');
+    const visible = () => { const b = bar(); return !!b && b.style.display !== 'none'; };
+    const click = (act) => { const b = bar().querySelector('button[data-act="'+act+'"]');
+      b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); };
+
+    setCursorAt(n => n.type.name === 'table_cell' || n.type.name === 'table_header');
+    const visInside = visible();
+    click('col-after');
+    const md3 = window.OKFEditor.getMarkdown();
+    // colunas = células delimitadas por '|' na 1ª linha (cabeçalho)
+    const cols = md3.split('\\n')[0].split('|').filter(s => s.trim() !== '').length;
+    setCursorAt(n => n.type.name === 'table_cell' || n.type.name === 'table_header');
+    click('row-after');
+    const md4 = window.OKFEditor.getMarkdown();
+    const pipeLines = (md4.match(/^\\|/gm) || []).length;
+    setCursorAt(n => n.type.name === 'paragraph' && n.textContent === 'texto fora');
+    const visOutside = visible();
+    const noHtml = !/<table/i.test(md4);
+
+    await window.OKFEditor.destroy();
+    host.remove();
+    return { visInside, cols, pipeLines, visOutside, noHtml };
+  })()`);
+  const okTable = tableUI && tableUI.visInside === true && tableUI.cols === 3 &&
+    tableUI.pipeLines >= 4 && tableUI.visOutside === false && tableUI.noHtml === true;
+  console.log('  table toolbar:', JSON.stringify(tableUI));
+
   const g6 = await win.webContents.executeJavaScript(`(async () => {
     if (!window.G6 || !window.G6.Graph) return { loaded:false };
     try {
@@ -138,8 +178,8 @@ app.whenReady().then(async () => {
   console.log('  window.OKFEditor presente:', result.editorGlobal);
   console.log('  paleta + modelos:', result.paletteUI, templatesCheck);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && cspViolations.length === 0
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && cspViolations.length === 0 ? 0 : 1);
 });
