@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -216,7 +216,7 @@ function renderRecents(list) {
     const when = e.exists ? escapeHtml(relTime(e.lastOpened)) : 'Pasta não encontrada';
     return `<div class="${cls}" data-path="${escapeAttr(e.path)}" data-name="${escapeAttr(e.name || '')}" data-exists="${e.exists ? '1' : '0'}">` +
       `<button class="recent-fav" title="Favoritar" data-fav="${escapeAttr(e.path)}">${favIcon}</button>` +
-      `<div class="recent-main"><div class="recent-name">${escapeHtml(e.name || baseNameOf(e.path))}</div>` +
+      `<div class="recent-main"><div class="recent-name">${escapeHtml(e.name || e.path.split(/[\\/]/).pop())}</div>` +
       `<div class="recent-path">${escapeHtml(e.path)}</div></div>` +
       `<span class="recent-when">${when}</span>` +
       `<button class="recent-remove" title="Remover da lista" data-remove="${escapeAttr(e.path)}">✕</button>` +
