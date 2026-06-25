@@ -127,7 +127,7 @@ function reconstructMarkdown(items) {
     const text = lineText(line);
     const sizeMax = Math.max(...line.items.map(it => it.fontSize));
     const h = headingHashes(sizeMax, median);
-    if (h) out.push(h + text.replace(/\*\*/g, '').trim());
+    if (h) out.push(h + text.replace(/\*{1,3}/g, '').trim());
     else if (BULLET.test(text)) out.push('- ' + text.replace(BULLET, ''));
     else out.push(text);
     i++;
