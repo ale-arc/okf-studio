@@ -181,7 +181,37 @@
     return '* [' + titleOf(doc) + '](/' + doc.relPath + ')' + (desc ? ' - ' + desc : '');
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor };
+  function sortedBullets(docs) {
+    return docs.map(d => ({ d, t: titleOf(d) }))
+      .sort((a, b) => a.t.localeCompare(b.t))
+      .map(x => bulletFor(x.d));
+  }
+  function dirListing(docs, dir) {
+    const pre = dir ? dir + '/' : '';
+    const items = docs.filter(d => !isReserved(d.relPath) &&
+      d.relPath.startsWith(pre) && d.relPath.slice(pre.length).indexOf('/') < 0);
+    return sortedBullets(items).join('\n');
+  }
+  function rootListing(docs) {
+    const concepts = docs.filter(d => !isReserved(d.relPath));
+    const rootItems = concepts.filter(d => d.relPath.indexOf('/') < 0);
+    const byTop = new Map();
+    for (const d of concepts) {
+      const i = d.relPath.indexOf('/');
+      if (i < 0) continue;
+      const top = d.relPath.slice(0, i);
+      if (!byTop.has(top)) byTop.set(top, []);
+      byTop.get(top).push(d);
+    }
+    const parts = [];
+    if (rootItems.length) parts.push(sortedBullets(rootItems).join('\n'));
+    for (const top of [...byTop.keys()].sort()) {
+      parts.push('## ' + headingFor(top) + '\n' + sortedBullets(byTop.get(top)).join('\n'));
+    }
+    return parts.join('\n\n');
+  }
+
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing };
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,

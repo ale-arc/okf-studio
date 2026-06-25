@@ -28,6 +28,20 @@ eq(A.bulletFor(doc('projetos/atlas.md', { type: 'Projeto', title: 'Projeto Atlas
    '* [Projeto Atlas](/projetos/atlas.md) - Migração.', 'bulletFor com descrição');
 eq(A.bulletFor(doc('a.md', { type: 'X', title: 'A' })), '* [A](/a.md)', 'bulletFor sem descrição');
 
+// ---- Task 2: listagens ----
+const docsT2 = [
+  doc('processos/a.md', { type: 'Processo', title: 'Beta', description: 'B.' }),
+  doc('processos/b.md', { type: 'Processo', title: 'Alfa', description: 'A.' }),
+  doc('processos/index.md', {}, '# Processos'),
+  doc('raiz.md', { type: 'Nota', title: 'Raiz', description: 'R.' }),
+];
+eq(A.dirListing(docsT2, 'processos'),
+   '* [Alfa](/processos/b.md) - A.\n* [Beta](/processos/a.md) - B.',
+   'dirListing ordena por título e ignora index.md');
+ok(A.rootListing(docsT2).includes('## Processos'), 'rootListing tem seção da categoria');
+ok(A.rootListing(docsT2).indexOf('* [Raiz](/raiz.md) - R.') < A.rootListing(docsT2).indexOf('## Processos'),
+   'rootListing lista conceitos da raiz antes das categorias');
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('AUTO OK');
