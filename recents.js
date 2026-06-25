@@ -76,18 +76,21 @@ function registerRecentsHandlers(ipcMain) {
     return enrichExists(list);
   });
   ipcMain.handle('recents:add', async (_e, { path: p, name }) => {
+    if (!p || typeof p !== 'string') return enrichExists(sortAndCap(await readStore(recentsFile())));
     const file = recentsFile();
     const list = addEntry(await readStore(file), { path: p, name }, Date.now());
     await writeStore(file, list);
     return enrichExists(list);
   });
   ipcMain.handle('recents:remove', async (_e, { path: p }) => {
+    if (!p || typeof p !== 'string') return enrichExists(sortAndCap(await readStore(recentsFile())));
     const file = recentsFile();
     const list = sortAndCap(removeEntry(await readStore(file), p));
     await writeStore(file, list);
     return enrichExists(list);
   });
   ipcMain.handle('recents:toggleFavorite', async (_e, { path: p }) => {
+    if (!p || typeof p !== 'string') return enrichExists(sortAndCap(await readStore(recentsFile())));
     const file = recentsFile();
     const list = toggleFavorite(await readStore(file), p);
     await writeStore(file, list);
