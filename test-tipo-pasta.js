@@ -74,3 +74,31 @@ assert.strictEqual(plan[0].from, 'misc/atlas.md');
 assert.strictEqual(plan[0].to, 'projeto/atlas.md');
 assert.strictEqual(plan[0].title, 'Atlas');
 console.log('Task 5 OK');
+
+// --- Integração: mover + regenerar index (item 3 ponta a ponta) ---
+// index.md tem o bloco gerenciado E um link "extra" fora do bloco.
+const idxContent =
+  '---\nokf_version: "0.1"\n---\n\n# Lib\n\n' +
+  'Veja também o [Velho conceito](/referencia/velho.md).\n\n' + // link fora do bloco
+  A.MARK_START + '\n## Referência\n* [Velho](/referencia/velho.md)\n' + A.MARK_END + '\n';
+let docsI = [
+  { relPath: 'index.md', name: 'index.md', reserved: true, content: idxContent },
+  { relPath: 'referencia/velho.md', name: 'velho.md', reserved: false,
+    content: '---\ntype: Referência\ntitle: Velho\n---\n# Velho' },
+];
+const from = 'referencia/velho.md', to = 'tabela/velho.md';
+// 1) reescreve links (como performMove)
+const ch = A.rewriteRenameLinks(docsI, from, to);
+const movedNew = '---\ntype: Tabela\ntitle: Velho\n---\n# Velho'; // troca de tipo aplica novo frontmatter
+let nextI = docsI.filter(d => d.relPath !== from).map(d => {
+  const c = ch.find(x => x.relPath === d.relPath);
+  return c ? { ...d, content: c.newContent } : d;
+});
+nextI.push({ relPath: to, name: 'velho.md', reserved: false, content: movedNew });
+// 2) regenera o bloco gerenciado do index (como indexContentFor)
+const idxDoc = nextI.find(d => d.relPath === 'index.md');
+const finalIdx = A.mergeManagedBlock(idxDoc.content, A.rootListing(nextI));
+assert.ok(finalIdx.includes('/tabela/velho.md'), 'index aponta para o novo caminho');
+assert.ok(!finalIdx.includes('/referencia/velho.md'), 'nenhum link antigo (quebrado) sobra');
+assert.ok(finalIdx.includes('## Tabela'), 'seção agrupada pelo novo tipo');
+console.log('Integração move+index OK');
