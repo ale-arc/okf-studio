@@ -244,10 +244,19 @@ button.update:disabled{opacity:1;color:#06281c}
 /* importar documento */
 .import-card { width: min(860px, 92vw); max-height: 88vh; display: flex; flex-direction: column; }
 .import-md { flex: 1; min-height: 320px; width: 100%; font-family: Consolas, monospace; font-size: 13px; resize: vertical; }
+.import-toolbar { display: flex; gap: 6px; margin: 4px 0; }
+.import-toolbar button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); }
+.import-toolbar button.on { background: var(--accent); color: #fff; }
+.import-card #import-editor { flex: 1; }
 .import-status { font-size: 13px; opacity: .85; margin: 4px 0; min-height: 18px; }
 .import-path-row { display: block; margin: 8px 0; }
 .row-buttons { display: flex; gap: 8px; justify-content: flex-end; }
 
+.reorg-list{max-height:46vh;overflow:auto;margin:10px 0;border:1px solid var(--line);border-radius:8px}
+.reorg-list:empty{display:none}
+.reorg-list .reorg-row{padding:6px 10px;border-bottom:1px solid var(--line);font-size:13px}
+.reorg-list .reorg-row:last-child{border-bottom:none}
+.reorg-list .reorg-row code{font-size:12px}
 .cm-list{max-height:46vh;overflow:auto;margin:10px 0;border:1px solid var(--line);border-radius:8px}
 .cm-list .cm-item{padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--line)}
 .cm-list .cm-item:last-child{border-bottom:none}

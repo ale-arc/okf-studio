@@ -14,30 +14,32 @@ import { clipboard } from '@milkdown/plugin-clipboard';
 import { slashFactory, SlashProvider } from '@milkdown/plugin-slash';
 import { callCommand, getMarkdown as getMd, replaceAll, insert } from '@milkdown/utils';
 
-const slash = slashFactory('okf-slash');
-let slashProvider = null;
+const COMMANDS = {
+  bold: [toggleStrongCommand], italic: [toggleEmphasisCommand], strike: [toggleStrikethroughCommand],
+  codeInline: [toggleInlineCodeCommand], h1: [wrapInHeadingCommand, 1], h2: [wrapInHeadingCommand, 2],
+  h3: [wrapInHeadingCommand, 3], bulletList: [wrapInBulletListCommand], orderedList: [wrapInOrderedListCommand],
+  blockquote: [wrapInBlockquoteCommand], codeBlock: [createCodeBlockCommand], hr: [insertHrCommand],
+  table: [insertTableCommand], undo: [undoCommand], redo: [redoCommand], clear: [turnIntoTextCommand]
+};
 
-const SLASH_ITEMS = [
-  { label: 'Título 1', run: () => runCommand('h1') },
-  { label: 'Título 2', run: () => runCommand('h2') },
-  { label: 'Lista', run: () => runCommand('bulletList') },
-  { label: 'Lista numerada', run: () => runCommand('orderedList') },
-  { label: 'Tarefas', run: () => taskList() },
-  { label: 'Citação', run: () => runCommand('blockquote') },
-  { label: 'Tabela', run: () => runCommand('table') },
-  { label: 'Bloco de código', run: () => runCommand('codeBlock') },
-  { label: 'Linha horizontal', run: () => runCommand('hr') }
-];
+let slashSeq = 0;
 
-let editor = null;
-
-export async function create(container, markdown, opts = {}) {
-  await destroy();
-  editor = await Editor.make()
+// Cria uma instância isolada do editor e retorna um handle com a API pública.
+export async function createInstance(container, markdown, opts = {}) {
+  const slash = slashFactory('okf-slash-' + (slashSeq++));
+  let slashProvider = null;
+  const SLASH_ITEMS = [
+    { label: 'Título 1', run: () => run('h1') }, { label: 'Título 2', run: () => run('h2') },
+    { label: 'Lista', run: () => run('bulletList') }, { label: 'Lista numerada', run: () => run('orderedList') },
+    { label: 'Tarefas', run: () => taskList() }, { label: 'Citação', run: () => run('blockquote') },
+    { label: 'Tabela', run: () => run('table') }, { label: 'Bloco de código', run: () => run('codeBlock') },
+    { label: 'Linha horizontal', run: () => run('hr') }
+  ];
+  const editor = await Editor.make()
     .config((ctx) => {
       ctx.set(rootCtx, container);
       ctx.set(defaultValueCtx, markdown || '');
-      ctx.get(listenerCtx).markdownUpdated((_ctx, md) => { if (opts.onChange) opts.onChange(md); });
+      ctx.get(listenerCtx).markdownUpdated((_c, md) => { if (opts.onChange) opts.onChange(md); });
       ctx.set(slash.key, {
         view: (view) => {
           const content = document.createElement('div');
@@ -59,100 +61,49 @@ export async function create(container, markdown, opts = {}) {
           });
           slashProvider = new SlashProvider({ content });
           return {
-            update: (updatedView, prevState) => { slashProvider.update(updatedView, prevState); },
+            update: (uv, ps) => { slashProvider.update(uv, ps); },
             destroy: () => { slashProvider.destroy(); slashProvider = null; }
           };
         }
       });
     })
-    .use(commonmark)
-    .use(gfm)
-    .use(history)
-    .use(listener)
-    .use(clipboard)
-    .use(slash)
-    .create();
-  return editor;
+    .use(commonmark).use(gfm).use(history).use(listener).use(clipboard).use(slash).create();
+
+  function run(name) { if (COMMANDS[name]) { const [c, p] = COMMANDS[name]; editor.action(callCommand(c.key, p)); } }
+  function taskList() { editor.action(insert('- [ ] ')); }
+  function focus() { editor.action((ctx) => { ctx.get(editorViewCtx).focus(); }); }
+  return {
+    getMarkdown: () => editor.action(getMd()),
+    setMarkdown: (md) => editor.action(replaceAll(md || '')),
+    runCommand: run,
+    taskList,
+    link: (href) => { if (href) editor.action(callCommand(toggleLinkCommand.key, { href })); },
+    image: (src) => { if (src) editor.action(callCommand(insertImageCommand.key, { src })); },
+    insertConceptLink: (path, title) => {
+      const p = path.startsWith('/') ? path : '/' + path;
+      editor.action(insert('[' + (title || path) + '](' + p + ')', true));
+    },
+    focus,
+    cursorEnd: () => editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx); const { doc } = view.state;
+      view.dispatch(view.state.tr.setSelection(view.state.selection.constructor.atEnd(doc)));
+      view.focus();
+    }),
+    destroy: async () => { await editor.destroy(); }
+  };
 }
 
-export function getMarkdown() {
-  if (!editor) return '';
-  return editor.action(getMd());
-}
-
-export function setMarkdown(md) {
-  if (!editor) return;
-  editor.action(replaceAll(md || ''));
-}
-
-const COMMANDS = {
-  bold: [toggleStrongCommand],
-  italic: [toggleEmphasisCommand],
-  strike: [toggleStrikethroughCommand],
-  codeInline: [toggleInlineCodeCommand],
-  h1: [wrapInHeadingCommand, 1],
-  h2: [wrapInHeadingCommand, 2],
-  h3: [wrapInHeadingCommand, 3],
-  bulletList: [wrapInBulletListCommand],
-  orderedList: [wrapInOrderedListCommand],
-  blockquote: [wrapInBlockquoteCommand],
-  codeBlock: [createCodeBlockCommand],
-  hr: [insertHrCommand],
-  table: [insertTableCommand],
-  undo: [undoCommand],
-  redo: [redoCommand],
-  clear: [turnIntoTextCommand]
-};
-
-export function runCommand(name) {
-  if (!editor || !COMMANDS[name]) return;
-  const [cmd, payload] = COMMANDS[name];
-  editor.action(callCommand(cmd.key, payload));
-}
-
-export function taskList() {
-  if (!editor) return;
-  editor.action(insert('- [ ] '));
-}
-
-export function link(href) {
-  if (!editor || !href) return;
-  editor.action(callCommand(toggleLinkCommand.key, { href }));
-}
-
-export function image(src) {
-  if (!editor || !src) return;
-  editor.action(callCommand(insertImageCommand.key, { src }));
-}
-
-export function insertConceptLink(path, title) {
-  if (!editor) return;
-  const p = path.startsWith('/') ? path : '/' + path;
-  editor.action(insert('[' + (title || path) + '](' + p + ')', true));
-}
-
-export function focus() {
-  if (!editor) return;
-  editor.action((ctx) => { ctx.get(editorViewCtx).focus(); });
-}
-
-export function cursorEnd() {
-  if (!editor) return;
-  editor.action((ctx) => {
-    const view = ctx.get(editorViewCtx);
-    const { doc } = view.state;
-    view.dispatch(view.state.tr.setSelection(
-      view.state.selection.constructor.atEnd(doc)
-    ));
-    view.focus();
-  });
-}
-
-export function setTheme(theme) {
-  // O editor herda as variáveis CSS do tema via [data-theme]; nada a fazer.
-  void theme;
-}
-
-export async function destroy() {
-  if (editor) { await editor.destroy(); editor = null; }
-}
+// ---- Instância padrão (compatibilidade com window.OKFEditor.* já usado) ----
+let def = null;
+export async function create(container, markdown, opts = {}) { await destroy(); def = await createInstance(container, markdown, opts); return def; }
+export function getMarkdown() { return def ? def.getMarkdown() : ''; }
+export function setMarkdown(md) { if (def) def.setMarkdown(md); }
+export function runCommand(name) { if (def) def.runCommand(name); }
+export function taskList() { if (def) def.taskList(); }
+export function link(href) { if (def) def.link(href); }
+export function image(src) { if (def) def.image(src); }
+export function insertConceptLink(path, title) { if (def) def.insertConceptLink(path, title); }
+export function focus() { if (def) def.focus(); }
+export function cursorEnd() { if (def) def.cursorEnd(); }
+export function setTheme(theme) { void theme; }
+export async function destroy() { if (def) { await def.destroy(); def = null; } }
