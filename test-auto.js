@@ -100,6 +100,7 @@ ok(log2.indexOf('Criação') < log2.indexOf('Exclusão'), 'apenda bullet ao dia 
 
 const log3 = A.appendLog(log1, '2026-06-26', '**Criação**: [Z](/z.md).');
 ok(log3.indexOf('## 2026-06-26') < log3.indexOf('## 2026-06-25'), 'dia novo entra no topo (mais recente primeiro)');
+ok(/\* \*\*Criação\*\*: \[Z\]\(\/z\.md\)\.\n\n## 2026-06-25/.test(log3), 'linha em branco entre seções de data');
 
 // ---- Task 3: bloco gerenciado ----
 const semMarcadores = '# Projetos\n\nTexto humano.\n';

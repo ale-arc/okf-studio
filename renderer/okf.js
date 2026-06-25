@@ -342,6 +342,10 @@
       let ins = titleIdx + 1;
       if (lines[ins] !== undefined && lines[ins].trim() === '') ins++;
       lines.splice(ins, 0, '', ...block);
+      const newEnd = ins + 1 + block.length;
+      if (lines[newEnd] !== undefined && /^##\s/.test(lines[newEnd])) {
+        lines.splice(newEnd, 0, '');
+      }
       return lines.join('\n').replace(/\n{3,}/g, '\n\n');
     }
     return (block.join('\n') + '\n\n' + (content || '')).replace(/\n{3,}/g, '\n\n');
