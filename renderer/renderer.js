@@ -749,10 +749,18 @@ function activatePalette(i) {
 
 function openModal() {
   if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
-  ['m-path','m-type','m-title','m-description'].forEach(id => $(id).value = '');
+  ['m-path', 'm-type', 'm-title', 'm-description', 'm-tags'].forEach(id => $(id).value = '');
   const tplSel = $('m-template');
   if (!tplSel.options.length) tplSel.innerHTML = Object.keys(CONCEPT_TEMPLATES).map(n => `<option>${escapeHtml(n)}</option>`).join('');
   tplSel.value = 'Em branco';
+  // categorias = pastas de topo existentes + opção de nova
+  const tops = new Set();
+  for (const d of state.docs) { if (!d.reserved && d.relPath.includes('/')) tops.add(d.relPath.split('/')[0]); }
+  const cat = $('m-category');
+  cat.innerHTML = '<option value="">(raiz)</option>' +
+    [...tops].sort().map(t => `<option>${escapeHtml(t)}</option>`).join('') +
+    '<option value="__new">+ nova categoria…</option>';
+  cat.value = '';
   $('modal').classList.remove('hidden');
   $('m-path').focus();
 }
@@ -763,20 +771,28 @@ async function createConcept() {
   if (!rel) { toast('Informe o caminho do arquivo.', 'bad'); return; }
   if (!rel.toLowerCase().endsWith('.md')) rel += '.md';
   if (!type) { toast('O campo "type" é obrigatório.', 'bad'); return; }
+  if (docByRel(rel)) { toast('Já existe um conceito em ' + rel, 'bad'); return; }
   const fm = { type };
-  if ($('m-title').value.trim()) fm.title = $('m-title').value.trim();
+  const title = $('m-title').value.trim() || baseNameOf(rel).replace(/\.md$/i, '');
+  fm.title = title;
   if ($('m-description').value.trim()) fm.description = $('m-description').value.trim();
+  const tags = $('m-tags').value.split(',').map(s => s.trim()).filter(Boolean);
+  if (tags.length) fm.tags = tags;
   fm.timestamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const tpl = CONCEPT_TEMPLATES[$('m-template').value] || CONCEPT_TEMPLATES['Em branco'];
-  const content = OKF.serialize(fm, '# ' + (fm.title || 'Novo conceito') + '\n\n' + tpl.body);
-  try {
-    await window.okf.createFile({ root: state.root, relPath: rel, content });
-    state.docs.push({ relPath: rel, name: rel.split('/').pop(), reserved: OKF.isReserved(rel), content, mtime: Date.now() });
-    indexDocs(); buildTypeFilter(); renderTree();
-    closeModal();
-    openDoc(rel);
-    toast('Conceito criado: ' + rel, 'good');
-  } catch (e) { toast('Erro ao criar: ' + e.message, 'bad'); }
+  const content = OKF.serialize(fm, '# ' + title + '\n\n' + tpl.body);
+
+  const newDoc = { relPath: rel, name: baseNameOf(rel), reserved: OKF.isReserved(rel), content };
+  const nextDocs = state.docs.concat([newDoc]);
+  const ops = [{ op: 'create', relPath: rel, content }];
+  if (autoIndexEnabled()) {
+    ops.push(...indexOpsFrom(nextDocs));
+    const desc = fm.description ? ' - ' + fm.description : '';
+    ops.push(logOpFrom(nextDocs, '**Criação**: [' + title + '](/' + rel + ')' + desc));
+  }
+  closeModal();
+  const ok = await applyOpsAndRefresh(ops, rel);
+  if (ok) toast('Conceito criado: ' + rel, 'good');
 }
 
 /* ---------- Validation ---------- */
@@ -998,6 +1014,16 @@ function init() {
   $('manual-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('m-cancel').onclick = closeModal;
   $('m-create').onclick = createConcept;
+  $('m-category').addEventListener('change', () => {
+    const cat = $('m-category');
+    let dir = cat.value;
+    if (dir === '__new') {
+      dir = (window.prompt('Nome da nova categoria (pasta):') || '').trim().replace(/[\\/]+$/, '');
+      if (!dir) { cat.value = ''; return; }
+    }
+    const file = baseNameOf($('m-path').value.trim() || 'novo.md');
+    $('m-path').value = dir ? dir + '/' + file : file;
+  });
   $('m-template').addEventListener('change', () => {
     const tpl = CONCEPT_TEMPLATES[$('m-template').value];
     if (tpl && tpl.type && !$('m-type').value.trim()) $('m-type').value = tpl.type;
