@@ -160,6 +160,38 @@ app.whenReady().then(async () => {
   const okGraph = g6 && g6.loaded && g6.rendered;
   console.log('  G6 graph:', JSON.stringify(g6));
 
+  // Sidebar: agrupamento por modo e colapso refletem no DOM.
+  const sidebar = await win.webContents.executeJavaScript(`(() => {
+    state.root = '/fake';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\ntags: [x, y]\\n---\\n# A\\n' },
+      { relPath: 'processo/b.md', name: 'b.md', reserved: false, content: '---\\ntype: Processo\\ntitle: B\\ntags: [x]\\n---\\n# B\\n' },
+      { relPath: 'index.md', name: 'index.md', reserved: true, content: '# Índice' }
+    ];
+    indexDocs();
+    state.collapsed = new Set();
+    document.getElementById('type-filter').value = '';
+    document.getElementById('search').value = '';
+    setGroupMode('type'); renderTree();
+    const heads = () => [...document.querySelectorAll('#tree .group-head .g-label')].map(e => e.textContent);
+    const typeHeads = heads();
+    setGroupMode('tag'); renderTree();
+    const tagHeads = heads();
+    setGroupMode('flat'); renderTree();
+    const flatHeads = heads();
+    setGroupMode('type'); renderTree();
+    const before = document.querySelectorAll('#tree .node').length;
+    toggleGroup('type:Projeto');
+    const after = document.querySelectorAll('#tree .node').length;
+    return { typeHeads, tagHeads, flatHeads, before, after };
+  })()`);
+  const okSidebar = sidebar &&
+    sidebar.typeHeads.includes('Projeto') && sidebar.typeHeads.includes('Processo') && sidebar.typeHeads.includes('Sistema') &&
+    sidebar.tagHeads.includes('x') && sidebar.tagHeads.includes('y') &&
+    sidebar.flatHeads.length === 1 && sidebar.flatHeads[0] === 'Sistema' &&
+    sidebar.after < sidebar.before;
+  console.log('  sidebar agrupamento/colapso:', JSON.stringify(sidebar));
+
   // Regressão: o datalist de tipos deve ser populado também ao ENTRAR EM EDIÇÃO,
   // não só ao criar um conceito novo. (Bug: enterEdit não chamava refreshTypeDatalist.)
   const datalist = await win.webContents.executeJavaScript(`(() => {
@@ -206,8 +238,9 @@ app.whenReady().then(async () => {
   console.log('  paleta + modelos:', result.paletteUI, templatesCheck);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
   console.log('  datalist tipos populado (edição + novo):', okDatalist);
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && cspViolations.length === 0
+  console.log('  sidebar OK:', okSidebar);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && cspViolations.length === 0 ? 0 : 1);
 });
