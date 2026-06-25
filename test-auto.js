@@ -28,6 +28,22 @@ eq(A.bulletFor(doc('projetos/atlas.md', { type: 'Projeto', title: 'Projeto Atlas
    '* [Projeto Atlas](/projetos/atlas.md) - Migração.', 'bulletFor com descrição');
 eq(A.bulletFor(doc('a.md', { type: 'X', title: 'A' })), '* [A](/a.md)', 'bulletFor sem descrição');
 
+// ---- Task 7: scaffolding ----
+const libFiles = A.libraryFiles('Minha Base', '2026-06-25');
+const idx = libFiles.find(f => f.relPath === 'index.md');
+const logf = libFiles.find(f => f.relPath === 'log.md');
+ok(idx && idx.content.includes('okf_version'), 'index raiz tem okf_version');
+ok(idx && idx.content.includes('# Minha Base'), 'index raiz tem o nome como título');
+ok(idx && idx.content.includes(A.MARK_START) && idx.content.includes(A.MARK_END), 'index raiz tem bloco gerenciado');
+ok(logf && logf.content.includes('## 2026-06-25'), 'log tem a data de criação');
+
+// conformidade: index.md/log.md são reservados; uma biblioteca só com eles + um conceito válido valida 0 erros
+const libDocs = libFiles.map(f => ({ relPath: f.relPath, name: f.relPath.split('/').pop(),
+  reserved: OKF.isReserved(f.relPath), content: f.content }));
+libDocs.push({ relPath: 'CLAUDE.md', name: 'CLAUDE.md', reserved: false,
+  content: OKF.serialize({ type: 'Referência', title: 'Regras do formato OKF' }, '# Regras\n') });
+eq(OKF.validate(libDocs).counts.errors, 0, 'scaffolding (com CLAUDE.md frontmatado) valida sem erros');
+
 // ---- Task 6: cross-links ----
 const conceptsT6 = [
   { relPath: 'projetos/atlas.md', title: 'Projeto Atlas' },

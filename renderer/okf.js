@@ -255,6 +255,21 @@
     return out.sort((a, b) => a.start - b.start);
   }
 
+  function libraryFiles(name, dateStr) {
+    const safeName = (name && name.trim()) ? name.trim() : 'Biblioteca';
+    const indexBody = '# ' + safeName + '\n\n' +
+      'Biblioteca de conhecimento no formato Open Knowledge Format (OKF v0.1).\n' +
+      'Cada arquivo `.md` é um *conceito*. Use os links para navegar pelo grafo.\n\n' +
+      MARK_START + '\n' + MARK_END + '\n';
+    const index = serialize({ okf_version: '0.1' }, indexBody);
+    const log = '# Histórico de Atualizações\n\n## ' + dateStr + '\n' +
+      '* **Criação**: estrutura inicial da biblioteca com [índice raiz](/index.md).\n';
+    return [
+      { relPath: 'index.md', content: index },
+      { relPath: 'log.md', content: log },
+    ];
+  }
+
   function applySuggestions(body, suggestions) {
     const sorted = [...suggestions].sort((a, b) => b.start - a.start); // da direita p/ esquerda
     let out = body;
@@ -343,7 +358,7 @@
     return content + sep + MARK_START + inner + MARK_END + '\n';
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions };
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles };
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,
