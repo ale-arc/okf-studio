@@ -944,21 +944,11 @@ async function saveEdit() {
     const folderChanged = !doc.reserved &&
       OKF.auto.folderForType(before.type || '') !== OKF.auto.folderForType(after.type || '');
     if (folderChanged) {
-      let dest = OKF.auto.moveTargetForType(doc.relPath, after.type || '');
-      let k = 2;
-      while (docByRel(dest) && dest !== doc.relPath) {
-        dest = OKF.auto.folderForType(after.type || '') + '/' +
-               baseNameOf(doc.relPath).replace(/\.md$/i, '') + '-' + (k++) + '.md';
-      }
       doc.content = content; // o arquivo movido carrega o frontmatter novo
-      const titleMv = after.title || baseNameOf(dest).replace(/\.md$/i, '');
-      const logEntry = autoIndexEnabled()
-        ? '**Troca de tipo**: `' + doc.relPath + '` → [' + titleMv + '](/' + dest + ') (Tipo: ' + (after.type || '') + ').'
-        : null;
       if (state.editorMode === 'visual' && window.OKFEditor) { await window.OKFEditor.destroy(); }
       state.editing = false;
-      const okMove = await performMove(doc.relPath, dest, logEntry, content);
-      if (okMove) toast('Tipo alterado; movido para ' + dest, 'good');
+      const dest = await changeConceptType(doc.relPath, after.type || '', content);
+      if (dest) toast('Tipo alterado; movido para ' + dest, 'good');
       return;
     }
     const metaChanged = (before.title || '') !== (after.title || '') ||
@@ -974,6 +964,24 @@ async function saveEdit() {
   } catch (e) {
     toast('Erro ao salvar: ' + e.message, 'bad');
   }
+}
+
+// Troca o tipo de um conceito movendo o arquivo para a pasta do novo tipo.
+// `content` é o conteúdo já com o frontmatter do novo tipo. Retorna o destino
+// (relPath) em sucesso, ou null em falha. Reusa performMove.
+async function changeConceptType(rel, newType, content) {
+  let dest = OKF.auto.moveTargetForType(rel, newType || '');
+  let k = 2;
+  while (docByRel(dest) && dest !== rel) {
+    dest = OKF.auto.folderForType(newType || '') + '/' +
+           baseNameOf(rel).replace(/\.md$/i, '') + '-' + (k++) + '.md';
+  }
+  const titleMv = OKF.parse(content).frontmatter.title || baseNameOf(dest).replace(/\.md$/i, '');
+  const logEntry = autoIndexEnabled()
+    ? '**Troca de tipo**: `' + rel + '` → [' + titleMv + '](/' + dest + ') (Tipo: ' + (newType || '') + ').'
+    : null;
+  const ok = await performMove(rel, dest, logEntry, content);
+  return ok ? dest : null;
 }
 
 /* ---------- Mover (núcleo compartilhado) ---------- */
