@@ -192,6 +192,33 @@ app.whenReady().then(async () => {
     sidebar.after < sidebar.before;
   console.log('  sidebar agrupamento/colapso:', JSON.stringify(sidebar));
 
+  // Favoritos: favoritar via toggleFavorite mostra o grupo no topo; desfavoritar remove.
+  const fav = await win.webContents.executeJavaScript(`(() => {
+    state.root = '/fake2';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\n---\\n# A\\n' }
+    ];
+    indexDocs();
+    state.collapsed = new Set();
+    state.favorites = new Set();
+    document.getElementById('type-filter').value = '';
+    document.getElementById('search').value = '';
+    setGroupMode('type'); renderTree();
+    const labels = () => [...document.querySelectorAll('#tree .group-head .g-label')].map(e => e.textContent);
+    const beforeFav = labels().some(l => l.indexOf('Favoritos') >= 0);
+    toggleFavorite('projeto/a.md');
+    const after = labels();
+    const hasFav = after.some(l => l.indexOf('Favoritos') >= 0);
+    const favFirst = !!(after[0] && after[0].indexOf('Favoritos') >= 0);
+    const marks = document.querySelectorAll('#tree .fav-mark').length;
+    toggleFavorite('projeto/a.md');
+    const removed = labels().some(l => l.indexOf('Favoritos') >= 0);
+    return { beforeFav, hasFav, favFirst, marks, removed };
+  })()`);
+  const okFav = fav && fav.beforeFav === false && fav.hasFav === true &&
+    fav.favFirst === true && fav.marks >= 1 && fav.removed === false;
+  console.log('  favoritos grupo/marcador:', JSON.stringify(fav));
+
   // Regressão: o datalist de tipos deve ser populado também ao ENTRAR EM EDIÇÃO,
   // não só ao criar um conceito novo. (Bug: enterEdit não chamava refreshTypeDatalist.)
   const datalist = await win.webContents.executeJavaScript(`(() => {
@@ -239,8 +266,9 @@ app.whenReady().then(async () => {
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
   console.log('  datalist tipos populado (edição + novo):', okDatalist);
   console.log('  sidebar OK:', okSidebar);
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && cspViolations.length === 0
+  console.log('  favoritos OK:', okFav);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && cspViolations.length === 0 ? 0 : 1);
 });
