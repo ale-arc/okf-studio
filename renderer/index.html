@@ -641,6 +641,18 @@ mudanças e poderá sincronizar entre máquinas.
   <script src="vendor/editor.bundle.js"></script>
   <script src="vendor/convert.bundle.js"></script>
   <script src="convert-ui.js"></script>
+  <!-- Módulos do renderer (escopo global compartilhado). Ordem por dependência;
+       renderer.js (entry com init()) é carregado por último. -->
+  <script src="core.js"></script>
+  <script src="prefs.js"></script>
+  <script src="data.js"></script>
+  <script src="start.js"></script>
+  <script src="tree.js"></script>
+  <script src="concept.js"></script>
+  <script src="git-panel.js"></script>
+  <script src="graph-view.js"></script>
+  <script src="palette.js"></script>
+  <script src="templates-ui.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>
