@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('okf', {
   exportPdf: (payload) => ipcRenderer.invoke('pdf:export', payload),
   openDocumentDialog: () => ipcRenderer.invoke('dialog:openDocument'),
   readBinary: (filePath) => ipcRenderer.invoke('file:readBinary', filePath),
-  onBundleChanged: (cb) => ipcRenderer.on('bundle:changed', () => cb()),
+  onBundleChanged: (cb) => ipcRenderer.on('bundle:changed', (_e, delta) => cb(delta)),
   git: {
     status: () => ipcRenderer.invoke('git:status'),
     commit: (message) => ipcRenderer.invoke('git:commit', message),

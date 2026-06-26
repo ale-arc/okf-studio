@@ -113,6 +113,16 @@ function logOpFrom(docs, entry) {
   return existing ? { op: 'write', relPath: 'log.md', content } : { op: 'create', relPath: 'log.md', content };
 }
 
+// Re-renderiza tudo a partir do state.docs atual (sem I/O) e seleciona selectRel.
+function rerenderFromState(selectRel) {
+  indexDocs(); buildTypeFilter(); renderTree(); refreshTypeDatalist();
+  $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
+  const want = selectRel || state.current;
+  if (want && state.docs.some(d => d.relPath === want)) openDoc(want);
+  else if (state.docs.length) { const f = state.docs.find(d => !d.reserved) || state.docs[0]; openDoc(f.relPath); }
+  else showEmpty();
+}
+
 // Aplica um lote e recarrega o estado do disco; seleciona selectRel se informado.
 async function applyOpsAndRefresh(ops, selectRel) {
   const r = await window.okf.applyOps({ root: state.root, ops });
@@ -121,7 +131,8 @@ async function applyOpsAndRefresh(ops, selectRel) {
     await refreshFromDisk(null);
     return false;
   }
-  await refreshFromDisk(selectRel);
+  state.docs = OKF.applyDelta(state.docs, OKF.opsToDelta(ops)); // patch sem reler o disco
+  rerenderFromState(selectRel);
   if (!$('git-view').classList.contains('hidden')) refreshGit();
   return true;
 }
@@ -129,12 +140,7 @@ async function applyOpsAndRefresh(ops, selectRel) {
 async function refreshFromDisk(selectRel) {
   const res = await window.okf.readBundle(state.root);
   state.docs = res.docs || [];
-  indexDocs(); buildTypeFilter(); renderTree(); refreshTypeDatalist();
-  $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
-  const want = selectRel || state.current;
-  if (want && state.docs.some(d => d.relPath === want)) openDoc(want);
-  else if (state.docs.length) { const f = state.docs.find(d => !d.reserved) || state.docs[0]; openDoc(f.relPath); }
-  else showEmpty();
+  rerenderFromState(selectRel);
 }
 
 /* ---------- Tema (claro/escuro) ---------- */
@@ -328,11 +334,16 @@ async function openClaude() {
 }
 
 /* ---------- Recarga ao vivo (watcher) ---------- */
-async function reloadFromDisk() {
+async function reloadFromDisk(delta) {
   if (!state.root) return;
-  let res;
-  try { res = await window.okf.readBundle(state.root); } catch (e) { return; }
-  const newDocs = res.docs || [];
+  let newDocs;
+  if (delta && (delta.upserts || delta.deletes)) {
+    newDocs = OKF.applyDelta(state.docs, delta); // mudança externa: só o delta
+  } else {
+    let res;
+    try { res = await window.okf.readBundle(state.root); } catch (e) { return; } // full (fallback)
+    newDocs = res.docs || [];
+  }
 
   // Edição em andamento: nunca sobrescrever o editor.
   if (state.editing && state.current) {
@@ -344,7 +355,7 @@ async function reloadFromDisk() {
     return;
   }
 
-  // Sem edição: atualização completa preservando a seleção.
+  // Sem edição: atualização preservando a seleção.
   state.docs = newDocs; indexDocs(); buildTypeFilter(); renderTree(); refreshTypeDatalist();
   $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
   if (state.current && state.docs.some(d => d.relPath === state.current)) {
@@ -1575,7 +1586,7 @@ function init() {
   $('git-do-push').onclick = gitPush;
   $('disk-reload').onclick = () => { $('disk-banner').classList.add('hidden'); cancelEdit(); reloadFromDisk(); };
   $('disk-keep').onclick = () => $('disk-banner').classList.add('hidden');
-  window.okf.onBundleChanged(() => { reloadFromDisk(); if (!$('git-view').classList.contains('hidden')) refreshGit(); });
+  window.okf.onBundleChanged((delta) => { reloadFromDisk(delta); if (!$('git-view').classList.contains('hidden')) refreshGit(); });
   $('empty-open').onclick = openFolder;
   $('empty-sample').onclick = openSample;
   $('empty-new').onclick = newLibrary;
