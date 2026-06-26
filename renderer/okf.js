@@ -467,7 +467,23 @@
     });
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg, groupConcepts, SYSTEM_GROUP_KEY, FAVORITES_GROUP_KEY };
+  // Retorna o conteúdo com `tag` adicionada ao frontmatter (idempotente; cria
+  // `tags` se ausente; preserva o resto). Tag vazia → conteúdo inalterado.
+  function withAddedTag(content, tag) {
+    const t = String(tag == null ? '' : tag).trim();
+    if (!t) return content;
+    const p = parse(content == null ? '' : content);
+    const fm = Object.assign({}, p.frontmatter);
+    const tags = Array.isArray(fm.tags)
+      ? fm.tags.slice()
+      : (fm.tags != null && String(fm.tags).trim() !== '' ? [String(fm.tags).trim()] : []);
+    if (tags.some(x => String(x).trim() === t)) return content;
+    tags.push(t);
+    fm.tags = tags;
+    return serialize(fm, p.body);
+  }
+
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg, groupConcepts, SYSTEM_GROUP_KEY, FAVORITES_GROUP_KEY, withAddedTag };
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,
