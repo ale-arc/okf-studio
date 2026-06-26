@@ -21,6 +21,7 @@
       <button id="btn-new" title="Novo conceito (Ctrl+N)" disabled>＋ Novo</button>
       <button id="btn-graph" title="Grafo de relacionamentos" disabled>🕸 Grafo</button>
       <button id="btn-validate" title="Validar conformidade OKF" disabled>✓ Validar</button>
+      <button id="btn-health" title="Saúde da biblioteca: links quebrados, órfãos, tipos inconsistentes…" disabled>⚕ Saúde</button>
       <button id="btn-claude" class="claude" title="Abrir o Claude Code num terminal nesta biblioteca" disabled>⌨ Claude Code</button>
       <button id="btn-git" title="Git: ver mudanças, commit e push" disabled>⎇ Git</button>
       <button id="btn-update" class="update hidden" title="Reiniciar para instalar a atualização baixada">⬆ Atualizar</button>
@@ -171,6 +172,16 @@
           <button id="validate-close">Fechar</button>
         </div>
         <div id="validate-body" class="validate-body"></div>
+      </div>
+
+      <!-- Saúde da biblioteca -->
+      <div id="health-view" class="hidden">
+        <div class="graph-head">
+          <strong>Saúde da biblioteca</strong>
+          <span class="grow"></span>
+          <button id="health-close">Fechar</button>
+        </div>
+        <div id="health-body" class="validate-body"></div>
       </div>
 
       <!-- Manual -->
@@ -651,6 +662,7 @@ mudanças e poderá sincronizar entre máquinas.
   <script src="concept.js"></script>
   <script src="git-panel.js"></script>
   <script src="graph-view.js"></script>
+  <script src="health.js"></script>
   <script src="palette.js"></script>
   <script src="templates-ui.js"></script>
   <script src="renderer.js"></script>

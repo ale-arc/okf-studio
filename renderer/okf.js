@@ -169,6 +169,88 @@
     };
   }
 
+  // Saúde do grafo de conhecimento (lint além da conformidade OKF v0.1).
+  // Função pura: não muta docs. Retorna achados por categoria + contagens.
+  function health(docs) {
+    const concepts = docs.filter(d => !isReserved(d.relPath));
+    const idSet = new Set(concepts.map(d => conceptId(d.relPath)));
+    const g = buildGraph(docs);
+
+    // Links quebrados: link interno resolve mas o conceito-alvo não existe.
+    const brokenLinks = [];
+    for (const d of concepts) {
+      const p = parseDoc(d);
+      const seen = new Set();
+      for (const lk of extractLinks(p.body)) {
+        const tgt = resolveTarget(lk.target, d.relPath);
+        if (!tgt || idSet.has(tgt)) continue;
+        if (seen.has(lk.target)) continue; seen.add(lk.target);
+        brokenLinks.push({ where: d.relPath, target: lk.target });
+      }
+    }
+
+    // Órfãos: conceito (não-reservado) sem nenhum backlink de entrada.
+    const orphans = g.nodes
+      .filter(n => !(g.backlinks[n.id] && g.backlinks[n.id].length))
+      .map(n => ({ where: n.relPath, title: n.title }));
+
+    // Tipos inconsistentes: mesmo folderForType (slug), rótulos crus divergentes.
+    const bySlug = new Map(); // slug -> Map(label -> count)
+    for (const d of concepts) {
+      const t = parseDoc(d).frontmatter.type;
+      if (t == null || String(t).trim() === '') continue;
+      const label = String(t).trim();
+      const slug = folderForType(label);
+      if (!bySlug.has(slug)) bySlug.set(slug, new Map());
+      const m = bySlug.get(slug);
+      m.set(label, (m.get(label) || 0) + 1);
+    }
+    const inconsistentTypes = [];
+    for (const [slug, m] of bySlug) {
+      if (m.size < 2) continue;
+      let canonical = null, best = -1; // canonical = rótulo mais frequente
+      for (const [label, c] of m) { if (c > best) { best = c; canonical = label; } }
+      inconsistentTypes.push({ slug, canonical, variants: [...m.keys()] });
+    }
+
+    // Títulos duplicados (normalizado: trim + minúsculas).
+    const byTitle = new Map();
+    for (const n of g.nodes) {
+      const key = String(n.title || '').trim().toLowerCase();
+      if (!key) continue;
+      if (!byTitle.has(key)) byTitle.set(key, []);
+      byTitle.get(key).push(n);
+    }
+    const duplicateTitles = [];
+    for (const arr of byTitle.values()) {
+      if (arr.length < 2) continue;
+      duplicateTitles.push({ title: arr[0].title, items: arr.map(n => ({ where: n.relPath })) });
+    }
+
+    // Dicas: sem description / sem tags.
+    const noDescription = [], noTags = [];
+    for (const d of concepts) {
+      const f = parseDoc(d).frontmatter;
+      const title = f.title || d.name.replace(/\.md$/i, '');
+      if (!f.description || String(f.description).trim() === '') noDescription.push({ where: d.relPath, title });
+      const tags = f.tags;
+      const hasTags = Array.isArray(tags) ? tags.length > 0 : (tags != null && String(tags).trim() !== '');
+      if (!hasTags) noTags.push({ where: d.relPath, title });
+    }
+
+    return {
+      brokenLinks, orphans, inconsistentTypes, duplicateTitles, noDescription, noTags,
+      counts: {
+        brokenLinks: brokenLinks.length,
+        orphans: orphans.length,
+        inconsistentTypes: inconsistentTypes.length,
+        duplicateTitles: duplicateTitles.length,
+        noDescription: noDescription.length,
+        noTags: noTags.length,
+      }
+    };
+  }
+
   // ---- Automação determinística (índices, log, rename, cross-links) ----
   const MARK_START = '<!-- okf:index -->';
   const MARK_END = '<!-- /okf:index -->';
@@ -538,7 +620,7 @@
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, parseDoc, serialize,
-    extractLinks, resolveTarget, isExternal, buildGraph, validate, auto,
+    extractLinks, resolveTarget, isExternal, buildGraph, validate, health, auto,
     opsToDelta, applyDelta
   };
 })(window);

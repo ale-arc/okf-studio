@@ -12,6 +12,7 @@ function paletteActions() {
     { label: 'Novo conceito', run: openModal, needsLib: true },
     { label: 'Grafo de relacionamentos', run: showGraph, needsLib: true },
     { label: 'Validar conformidade', run: showValidation, needsLib: true },
+    { label: 'Saúde da biblioteca', run: showHealth, needsLib: true },
     { label: 'Painel Git', run: showGit, needsLib: true },
     { label: 'Claude Code (terminal)', run: openClaude, needsLib: true },
     { label: 'Recarregar biblioteca', run: reload, needsLib: true },

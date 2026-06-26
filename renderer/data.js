@@ -137,7 +137,7 @@ function loadBundle(res, name) {
   state.collapsed = loadCollapsedSet();
   state.favorites = loadFavoritesSet();
   $('bundle-name').textContent = name + '  ·  ' + state.docs.length + ' arquivos';
-  ['btn-reload','btn-new','btn-graph','btn-validate','btn-claude','btn-git','search','type-filter'].forEach(id => $(id).disabled = false);
+  ['btn-reload','btn-new','btn-graph','btn-validate','btn-health','btn-claude','btn-git','search','type-filter'].forEach(id => $(id).disabled = false);
   document.querySelectorAll('#group-seg button').forEach(b => b.disabled = false);
   updateGroupModeButtons();
   buildTypeFilter();

@@ -51,6 +51,7 @@ function init() {
   $('btn-new').onclick = openModal;
   $('btn-graph').onclick = showGraph;
   $('btn-validate').onclick = showValidation;
+  $('btn-health').onclick = showHealth;
   $('btn-claude').onclick = openClaude;
   $('btn-git').onclick = showGit;
   $('git-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
@@ -100,6 +101,7 @@ function init() {
     if (state.current) showViewer();
   };
   $('validate-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
+  $('health-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('manual-close').onclick = () => { closeOverlays(); if (state.current) showViewer(); };
   $('m-cancel').onclick = closeModal;
   $('m-create').onclick = createConcept;
@@ -140,6 +142,7 @@ function init() {
   window.okf.onMenu('menu:save', () => { if (state.editing) saveEdit(); });
   window.okf.onMenu('menu:reload', reload);
   window.okf.onMenu('menu:validate', showValidation);
+  window.okf.onMenu('menu:health', showHealth);
   window.okf.onMenu('menu:graph', showGraph);
   window.okf.onMenu('menu:rebuild-indexes', rebuildIndexes);
   window.okf.onMenu('menu:manual', showManual);
@@ -153,7 +156,7 @@ function init() {
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); openPalette(); return; }
-    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); closeRename(); closeTreeMenu(); closeNewLib(); closeTemplates(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
+    if (e.key === 'Escape') { closeModal(); closeConceptPicker(); closePalette(); closeRename(); closeTreeMenu(); closeNewLib(); closeTemplates(); if ($('graph-view').classList.contains('hidden')===false || $('validate-view').classList.contains('hidden')===false || $('health-view').classList.contains('hidden')===false || $('manual-view').classList.contains('hidden')===false || $('git-view').classList.contains('hidden')===false){ closeOverlays(); if(state.current) showViewer(); } }
   });
 }
 init();
