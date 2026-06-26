@@ -71,31 +71,35 @@ async function writeStore(file, list) {
 }
 
 function registerRecentsHandlers(ipcMain) {
-  ipcMain.handle('recents:list', async () => {
+  // Serializa as operações para evitar leitura/gravação concorrente do JSON.
+  let queue = Promise.resolve();
+  const serialize = (fn) => { const r = queue.then(fn, fn); queue = r.catch(() => {}); return r; };
+
+  ipcMain.handle('recents:list', () => serialize(async () => {
     const list = sortAndCap(await readStore(recentsFile()));
     return enrichExists(list);
-  });
-  ipcMain.handle('recents:add', async (_e, { path: p, name }) => {
+  }));
+  ipcMain.handle('recents:add', (_e, { path: p, name }) => serialize(async () => {
     if (!p || typeof p !== 'string') return enrichExists(sortAndCap(await readStore(recentsFile())));
     const file = recentsFile();
     const list = addEntry(await readStore(file), { path: p, name }, Date.now());
     await writeStore(file, list);
     return enrichExists(list);
-  });
-  ipcMain.handle('recents:remove', async (_e, { path: p }) => {
+  }));
+  ipcMain.handle('recents:remove', (_e, { path: p }) => serialize(async () => {
     if (!p || typeof p !== 'string') return enrichExists(sortAndCap(await readStore(recentsFile())));
     const file = recentsFile();
     const list = sortAndCap(removeEntry(await readStore(file), p));
     await writeStore(file, list);
     return enrichExists(list);
-  });
-  ipcMain.handle('recents:toggleFavorite', async (_e, { path: p }) => {
+  }));
+  ipcMain.handle('recents:toggleFavorite', (_e, { path: p }) => serialize(async () => {
     if (!p || typeof p !== 'string') return enrichExists(sortAndCap(await readStore(recentsFile())));
     const file = recentsFile();
     const list = toggleFavorite(await readStore(file), p);
     await writeStore(file, list);
     return enrichExists(list);
-  });
+  }));
 }
 
 module.exports = {

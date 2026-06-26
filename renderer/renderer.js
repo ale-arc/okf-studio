@@ -17,6 +17,15 @@ const state = {
   favorites: new Set(),
 };
 
+/* Chaves de localStorage (centralizadas). */
+const LS = {
+  THEME: 'okf-theme',
+  AUTO_INDEX: 'okf-auto-index',
+  GROUP_MODE: 'okf-group-mode',
+  COLLAPSED: 'okf-collapsed:',   // prefixo + state.root
+  FAVORITES: 'okf-favorites:',   // prefixo + state.root
+};
+
 /* ---------- Modelos do usuário (fora da biblioteca) ---------- */
 async function loadTemplates() {
   try {
@@ -45,10 +54,10 @@ function applyTemplateToForm(name) {
 
 /* ---------- Automação: preferência + montagem de ops ---------- */
 function autoIndexEnabled() {
-  try { return localStorage.getItem('okf-auto-index') !== 'off'; } catch (e) { return true; }
+  try { return localStorage.getItem(LS.AUTO_INDEX) !== 'off'; } catch (e) { return true; }
 }
 function setAutoIndex(on) {
-  try { localStorage.setItem('okf-auto-index', on ? 'on' : 'off'); } catch (e) {}
+  try { localStorage.setItem(LS.AUTO_INDEX, on ? 'on' : 'off'); } catch (e) {}
 }
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 function baseNameOf(rel) { return rel.split('/').pop(); }
@@ -99,7 +108,7 @@ function indexOpsFrom(docs) {
   // Remove index.md de subdiretórios que não contêm mais nenhum conceito.
   const keep = new Set(dirs.map(d => (d ? d + '/index.md' : 'index.md')));
   for (const d of docs) {
-    if (d.relPath.split('/').pop().toLowerCase() !== 'index.md') continue;
+    if (baseNameOf(d.relPath).toLowerCase() !== 'index.md') continue;
     if (!keep.has(d.relPath)) ops.push({ op: 'delete', relPath: d.relPath });
   }
   return ops;
@@ -151,7 +160,7 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   const btn = document.getElementById('btn-theme');
   if (btn) { btn.textContent = theme === 'light' ? '☀' : '🌙'; }
-  try { localStorage.setItem('okf-theme', theme); } catch (e) {}
+  try { localStorage.setItem(LS.THEME, theme); } catch (e) {}
   // Re-render the graph so its colors follow the new theme.
   if (typeof showGraph === 'function' && state && state.root &&
       $('graph-view') && !$('graph-view').classList.contains('hidden')) {
@@ -160,7 +169,7 @@ function applyTheme(theme) {
 }
 function initTheme() {
   let theme;
-  try { theme = localStorage.getItem('okf-theme'); } catch (e) {}
+  try { theme = localStorage.getItem(LS.THEME); } catch (e) {}
   if (!theme) {
     theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
@@ -398,15 +407,15 @@ function indexDocs() {
 
 /* ---------- Agrupamento e colapso da árvore ---------- */
 function currentGroupMode() {
-  try { const m = localStorage.getItem('okf-group-mode'); return (m === 'tag' || m === 'flat') ? m : 'type'; }
+  try { const m = localStorage.getItem(LS.GROUP_MODE); return (m === 'tag' || m === 'flat') ? m : 'type'; }
   catch (e) { return 'type'; }
 }
-function setGroupMode(mode) { try { localStorage.setItem('okf-group-mode', mode); } catch (e) {} }
+function setGroupMode(mode) { try { localStorage.setItem(LS.GROUP_MODE, mode); } catch (e) {} }
 function updateGroupModeButtons() {
   const mode = currentGroupMode();
   document.querySelectorAll('#group-seg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
 }
-function collapseKey() { return 'okf-collapsed:' + (state.root || ''); }
+function collapseKey() { return LS.COLLAPSED + (state.root || ''); }
 function loadCollapsedSet() {
   let raw = null;
   try { raw = localStorage.getItem(collapseKey()); } catch (e) {}
@@ -414,7 +423,7 @@ function loadCollapsedSet() {
   try { const a = JSON.parse(raw); return new Set(Array.isArray(a) ? a : []); } catch (e) { return new Set(); }
 }
 function saveCollapsed(set) { try { localStorage.setItem(collapseKey(), JSON.stringify([...set])); } catch (e) {} }
-function favoritesKey() { return 'okf-favorites:' + (state.root || ''); }
+function favoritesKey() { return LS.FAVORITES + (state.root || ''); }
 function loadFavoritesSet() {
   try { const a = JSON.parse(localStorage.getItem(favoritesKey())); return new Set(Array.isArray(a) ? a : []); }
   catch (e) { return new Set(); }
@@ -999,7 +1008,7 @@ async function saveEdit() {
     if ($('e-title').value.trim()) fm.title = $('e-title').value.trim();
     if ($('e-description').value.trim()) fm.description = $('e-description').value.trim();
     if ($('e-resource').value.trim()) fm.resource = $('e-resource').value.trim();
-    const tags = $('e-tags').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const tags = OKF.auto.parseTags($('e-tags').value);
     if (tags.length) fm.tags = tags;
     if ($('e-timestamp').value.trim()) fm.timestamp = $('e-timestamp').value.trim();
     const extraRaw = $('e-extra').value.trim();
@@ -1275,7 +1284,7 @@ async function createConcept() {
   if (docByRel(rel)) { toast('Já existe um conceito em ' + rel, 'bad'); return; }
   const fm = { type, title };
   if ($('m-description').value.trim()) fm.description = $('m-description').value.trim();
-  const tags = $('m-tags').value.split(',').map(s => s.trim()).filter(Boolean);
+  const tags = OKF.auto.parseTags($('m-tags').value);
   if (tags.length) fm.tags = tags;
   fm.timestamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const tpl = state.templates.find(t => t.name === $('m-template').value);
@@ -1360,7 +1369,7 @@ async function saveTpl() {
   const fm = {};
   const type = $('tpl-type').value.trim(); if (type) fm.type = type;
   const desc = $('tpl-description').value.trim(); if (desc) fm.description = desc;
-  const tags = $('tpl-tags').value.split(',').map(s => s.trim()).filter(Boolean); if (tags.length) fm.tags = tags;
+  const tags = OKF.auto.parseTags($('tpl-tags').value); if (tags.length) fm.tags = tags;
   const content = OKF.serialize(fm, $('tpl-body').value);
   const r = await window.okf.templates.save({ name, content, oldName: tplSelected });
   if (!r || !r.ok) { toast('Erro: ' + ((r && r.error) || 'desconhecido'), 'bad'); return; }

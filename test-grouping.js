@@ -135,4 +135,12 @@ const doc = (relPath, fm, body) => ({ relPath, name: relPath.split('/').pop(), c
   assert.deepStrictEqual(OKF.parseDoc({}).frontmatter, {});
 }
 
+// parseTags: split por vírgula, trim, remove vazios
+{
+  assert.deepStrictEqual(OKF.auto.parseTags('a, b ,,c'), ['a', 'b', 'c']);
+  assert.deepStrictEqual(OKF.auto.parseTags(''), []);
+  assert.deepStrictEqual(OKF.auto.parseTags(null), []);
+  assert.deepStrictEqual(OKF.auto.parseTags('  '), []);
+}
+
 console.log('test-grouping OK');

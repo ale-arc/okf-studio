@@ -492,7 +492,12 @@
     return serialize(fm, p.body);
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg, groupConcepts, SYSTEM_GROUP_KEY, FAVORITES_GROUP_KEY, withAddedTag };
+  // Divide uma string "a, b, c" em ['a','b','c'] (trim; remove vazios).
+  function parseTags(s) {
+    return String(s == null ? '' : s).split(',').map(x => x.trim()).filter(Boolean);
+  }
+
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg, groupConcepts, SYSTEM_GROUP_KEY, FAVORITES_GROUP_KEY, withAddedTag, parseTags };
 
   // Deriva um delta {upserts, deletes} de uma lista de ops do fs:applyOps.
   // create/write não-binária e .md → upsert (doc completo); delete .md → deletes.
