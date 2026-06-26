@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancela execuções antigas do mesmo ref quando chega um novo push.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # windows-latest: combina com o produto (build :win) e o test:ui (Electron com
+    # janela real) roda com display nativo — sem necessidade de xvfb.
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar build.files (require locais empacotados)
+        run: npm run check:files
+
+      # Os bundles do renderer são gitignored (gerados). O index.html carregado
+      # pelo test:ui depende deles, então buildamos antes do smoke.
+      - name: Build do bundle do editor
+        run: npm run build:editor
+
+      - name: Build do bundle de conversão
+        run: npm run build:convert
+
+      - name: Testes de unidade (Node)
+        run: npm test
+
+      - name: Smoke do renderer (Electron)
+        run: npm run test:ui
