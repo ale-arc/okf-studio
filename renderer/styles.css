@@ -233,7 +233,14 @@ button.update:disabled{opacity:1;color:#06281c}
 .v-item.warnv{border-left-color:var(--warn)}
 .v-item.okv{border-left-color:var(--good)}
 .v-item .where{color:var(--accent);cursor:pointer;font-weight:600}
+#health-body .v-item .where:not([data-rel]){color:var(--muted);cursor:default;font-weight:600}
 .v-item .msg{color:var(--muted);font-size:13px;margin-top:2px}
+/* Saúde da biblioteca: cabeçalhos de seção + botão de correção */
+.v-section{margin:18px 0 8px;font-size:12px;font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--muted)}
+.health-fix{margin-left:8px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;
+  background:var(--accent);color:#fff;font-size:12px;cursor:pointer}
+.health-fix:hover{filter:brightness(1.08)}
 
 /* modal */
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;

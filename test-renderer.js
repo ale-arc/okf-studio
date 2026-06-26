@@ -326,6 +326,27 @@ app.whenReady().then(async () => {
   const okDatalist = !!datalist && datalist.edit >= 2 && datalist.novo >= 2;
   console.log('  datalist tipos (edicao/novo):', JSON.stringify(datalist));
 
+  // Saúde da biblioteca: showHealth popula o painel com achados clicáveis.
+  const health = await win.webContents.executeJavaScript(`(() => {
+    state.root = '/fake-health';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\ndescription: d\\ntags: [x]\\n---\\n# A\\n[falta](/nada/zzz.md)\\n' },
+      { relPath: 'projeto/b.md', name: 'b.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: B\\ndescription: d\\ntags: [x]\\n---\\n# B\\n[A](/projeto/a.md)\\n' }
+    ];
+    indexDocs();
+    state.collapsed = new Set(); state.favorites = new Set(); state.editing = false; state.current = null;
+    showHealth();
+    const shown = !document.getElementById('health-view').classList.contains('hidden');
+    const body = document.getElementById('health-body');
+    const broken = body.textContent.indexOf('conceito inexistente') !== -1;
+    const orphan = body.textContent.indexOf('Nenhum outro conceito') !== -1;
+    const clickable = body.querySelectorAll('.where[data-rel]').length;
+    closeOverlays();
+    return { shown, broken, orphan, clickable };
+  })()`);
+  const okHealth = !!health && health.shown && health.broken && health.orphan && health.clickable >= 1;
+  console.log('  saúde da biblioteca:', JSON.stringify(health));
+
   const okGlobals = ['marked','OKF','G6','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
   const okBridge = result.okfBridge === 'object' && result.updateBridge === true && result.claudeBridge === true && result.gitBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
@@ -351,8 +372,9 @@ app.whenReady().then(async () => {
   console.log('  sanitização OK:', okSani);
   console.log('  estabilidade OK:', okCancel);
   console.log('  delta-reload OK:', okDelta);
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && cspViolations.length === 0
+  console.log('  saúde OK:', okHealth);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && okHealth && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && okHealth && cspViolations.length === 0 ? 0 : 1);
 });

@@ -109,6 +109,7 @@ function buildMenu() {
         { label: 'Validar conformidade OKF', click: () => mainWindow.webContents.send('menu:validate') },
         { label: 'Reconstruir índices', click: () => mainWindow.webContents.send('menu:rebuild-indexes') },
         { label: 'Grafo de relacionamentos', click: () => mainWindow.webContents.send('menu:graph') },
+        { label: 'Saúde da biblioteca', click: () => mainWindow.webContents.send('menu:health') },
         { type: 'separator' },
         { role: 'toggleDevTools', label: 'Ferramentas de desenvolvedor' },
         { role: 'resetZoom', label: 'Zoom padrão' },
