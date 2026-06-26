@@ -369,3 +369,6 @@ button.update:disabled{opacity:1;color:#06281c}
 .tree .group-head .caret { font-size: 11px; width: 10px; }
 .tree .group-head .g-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree .group-head .g-count { color: var(--muted); font-weight: 400; }
+
+/* ---------- Sidebar: marcador de favorito ---------- */
+.tree .node .fav-mark { color: var(--warn); font-size: 11px; margin-left: 6px; }
