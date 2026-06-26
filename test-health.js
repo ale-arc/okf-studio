@@ -73,4 +73,23 @@ assert.strictEqual(hc.orphans.length, 0);
 assert.strictEqual(hc.inconsistentTypes.length, 0);
 assert.strictEqual(hc.duplicateTitles.length, 0);
 
+// 9) unifyTypeOps: padroniza rótulos do mesmo slug
+{
+  // alvo "Referência": reescreve c.md (referencia), pula d.md (já Referência) e reservados
+  const ops = OKF.auto.unifyTypeOps(docs, 'referencia', 'Referência');
+  assert.strictEqual(ops.length, 1, 'um write para unificar');
+  assert.strictEqual(ops[0].op, 'write');
+  assert.strictEqual(ops[0].relPath, 'referencia/c.md');
+  assert.ok(/type:\s*Referência/.test(ops[0].content), 'frontmatter padronizado');
+  // alvo "referencia": agora reescreve d.md
+  const ops2 = OKF.auto.unifyTypeOps(docs, 'referencia', 'referencia');
+  assert.deepStrictEqual(ops2.map(o => o.relPath), ['referencia/d.md']);
+  // slug sem inconsistência: nenhuma op
+  assert.strictEqual(OKF.auto.unifyTypeOps(docs, 'projeto', 'Projeto').length, 0);
+  // não muta a entrada
+  const snap = JSON.stringify(docs);
+  OKF.auto.unifyTypeOps(docs, 'referencia', 'Referência');
+  assert.strictEqual(JSON.stringify(docs), snap, 'unifyTypeOps não muta docs');
+}
+
 console.log('test-health OK');

@@ -507,6 +507,22 @@
     }
     return out;
   }
+  // Ops (write) para padronizar todos os conceitos cujo tipo mapeia ao `slug`
+  // para o rótulo `target`. Só reescreve o frontmatter (mesma pasta = slug);
+  // pula reservados, sem-tipo e os que já estão no rótulo alvo. Função pura.
+  function unifyTypeOps(docs, slug, target) {
+    const ops = [];
+    for (const d of (docs || [])) {
+      if (isReserved(d.relPath)) continue;
+      const p = parse(d.content);
+      const t = p.frontmatter.type;
+      if (t == null || String(t).trim() === '') continue;
+      if (folderForType(String(t).trim()) !== slug) continue;
+      if (String(t).trim() === target) continue;
+      ops.push({ op: 'write', relPath: d.relPath, content: serialize(Object.assign({}, p.frontmatter, { type: target }), p.body) });
+    }
+    return ops;
+  }
 
   const SYSTEM_GROUP_KEY = '__system__';
   const FAVORITES_GROUP_KEY = '__favorites__';
@@ -579,7 +595,7 @@
     return String(s == null ? '' : s).split(',').map(x => x.trim()).filter(Boolean);
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg, groupConcepts, SYSTEM_GROUP_KEY, FAVORITES_GROUP_KEY, withAddedTag, parseTags };
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg, unifyTypeOps, groupConcepts, SYSTEM_GROUP_KEY, FAVORITES_GROUP_KEY, withAddedTag, parseTags };
 
   // Deriva um delta {upserts, deletes} de uma lista de ops do fs:applyOps.
   // create/write não-binária e .md → upsert (doc completo); delete .md → deletes.

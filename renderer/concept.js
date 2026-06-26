@@ -493,6 +493,21 @@ async function applyReorg() {
   toast('Reorganização concluída: ' + okCount + '/' + plan.length, 'good');
 }
 
+// Padroniza o tipo: reescreve o frontmatter de todos os conceitos cujo tipo
+// mapeia ao mesmo slug para o rótulo `target` (usado pelo painel Saúde).
+async function unifyType(slug, target) {
+  const ops = OKF.auto.unifyTypeOps(state.docs, slug, target);
+  if (!ops.length) { toast('Nada a unificar.', 'good'); return false; }
+  const ok = await window.okf.confirm({
+    message: 'Padronizar o tipo para "' + target + '"?',
+    detail: ops.length + ' conceito(s) terão o campo "type" reescrito (mesma pasta; nada é movido).'
+  });
+  if (!ok) return false;
+  const done = await applyOpsAndRefresh(ops, state.current);
+  if (done) toast('Tipo unificado: ' + ops.length + ' conceito(s) → ' + target, 'good');
+  return done;
+}
+
 /* ---------- Delete ---------- */
 async function deleteCurrent() {
   const doc = state.docs.find(d => d.relPath === state.current);

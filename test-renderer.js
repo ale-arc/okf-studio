@@ -331,7 +331,9 @@ app.whenReady().then(async () => {
     state.root = '/fake-health';
     state.docs = [
       { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\ndescription: d\\ntags: [x]\\n---\\n# A\\n[falta](/nada/zzz.md)\\n' },
-      { relPath: 'projeto/b.md', name: 'b.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: B\\ndescription: d\\ntags: [x]\\n---\\n# B\\n[A](/projeto/a.md)\\n' }
+      { relPath: 'projeto/b.md', name: 'b.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: B\\ndescription: d\\ntags: [x]\\n---\\n# B\\n[A](/projeto/a.md)\\n' },
+      { relPath: 'referencia/c.md', name: 'c.md', reserved: false, content: '---\\ntype: referencia\\ntitle: C\\ndescription: d\\ntags: [y]\\n---\\n# C\\n' },
+      { relPath: 'referencia/d.md', name: 'd.md', reserved: false, content: '---\\ntype: Referência\\ntitle: D\\ndescription: d\\ntags: [z]\\n---\\n# D\\n' }
     ];
     indexDocs();
     state.collapsed = new Set(); state.favorites = new Set(); state.editing = false; state.current = null;
@@ -341,10 +343,11 @@ app.whenReady().then(async () => {
     const broken = body.textContent.indexOf('conceito inexistente') !== -1;
     const orphan = body.textContent.indexOf('Nenhum outro conceito') !== -1;
     const clickable = body.querySelectorAll('.where[data-rel]').length;
+    const unifyBtn = body.querySelectorAll('button[data-unify]').length;
     closeOverlays();
-    return { shown, broken, orphan, clickable };
+    return { shown, broken, orphan, clickable, unifyBtn };
   })()`);
-  const okHealth = !!health && health.shown && health.broken && health.orphan && health.clickable >= 1;
+  const okHealth = !!health && health.shown && health.broken && health.orphan && health.clickable >= 1 && health.unifyBtn >= 2;
   console.log('  saúde da biblioteca:', JSON.stringify(health));
 
   // Autocomplete [[wikilink]]: detecção pura + popup filtrado ao digitar "[[".
