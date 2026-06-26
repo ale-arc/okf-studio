@@ -494,8 +494,46 @@
 
   const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg, groupConcepts, SYSTEM_GROUP_KEY, FAVORITES_GROUP_KEY, withAddedTag };
 
+  // Deriva um delta {upserts, deletes} de uma lista de ops do fs:applyOps.
+  // create/write não-binária e .md → upsert (doc completo); delete .md → deletes.
+  function opsToDelta(ops) {
+    const upserts = [], deletes = [];
+    for (const op of (ops || [])) {
+      if (!op || op.binary) continue;
+      if (!/\.md$/i.test(op.relPath || '')) continue;
+      if (op.op === 'create' || op.op === 'write') {
+        upserts.push({
+          relPath: op.relPath,
+          name: op.relPath.split('/').pop(),
+          reserved: isReserved(op.relPath),
+          content: op.content
+        });
+      } else if (op.op === 'delete') {
+        deletes.push(op.relPath);
+      }
+    }
+    return { upserts, deletes };
+  }
+
+  // Aplica um delta a um array de docs SEM mutar a entrada. Upserts substituem o
+  // doc de mesmo relPath ou são acrescentados; deletes removem. Ordem não importa.
+  function applyDelta(docs, delta) {
+    const ups = (delta && delta.upserts) || [];
+    const del = new Set((delta && delta.deletes) || []);
+    const byPath = new Map(ups.map(d => [d.relPath, d]));
+    const out = [];
+    for (const d of (docs || [])) {
+      if (del.has(d.relPath)) continue;
+      if (byPath.has(d.relPath)) { out.push(byPath.get(d.relPath)); byPath.delete(d.relPath); }
+      else out.push(d);
+    }
+    for (const d of byPath.values()) out.push(d);
+    return out;
+  }
+
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, parseDoc, serialize,
-    extractLinks, resolveTarget, isExternal, buildGraph, validate, auto
+    extractLinks, resolveTarget, isExternal, buildGraph, validate, auto,
+    opsToDelta, applyDelta
   };
 })(window);
