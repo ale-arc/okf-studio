@@ -1000,8 +1000,11 @@ async function performMove(fromRel, toRel, logEntry, movedContentOverride) {
     ops.push(...indexOpsFrom(nextDocs));
     if (logEntry) ops.push(logOpFrom(nextDocs, logEntry));
   }
-  if (state.favorites.has(fromRel)) { state.favorites.delete(fromRel); state.favorites.add(toRel); saveFavorites(); }
-  return applyOpsAndRefresh(ops, toRel);
+  const movedOk = await applyOpsAndRefresh(ops, toRel);
+  if (movedOk && state.favorites.has(fromRel)) {
+    state.favorites.delete(fromRel); state.favorites.add(toRel); saveFavorites(); renderTree();
+  }
+  return movedOk;
 }
 
 /* ---------- Renomear / Mover ---------- */
