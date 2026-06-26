@@ -184,6 +184,23 @@
         <div id="health-body" class="validate-body"></div>
       </div>
 
+      <!-- Busca e substituição -->
+      <div id="search-view" class="hidden">
+        <div class="graph-head">
+          <strong>Busca e substituição</strong>
+          <span class="grow"></span>
+          <button id="search-close">Fechar</button>
+        </div>
+        <div class="search-bar">
+          <input id="sq" type="text" placeholder="Buscar no corpo dos conceitos…" />
+          <input id="sr" type="text" placeholder="Substituir por… (opcional)" />
+          <label class="search-cs"><input id="sc" type="checkbox" /> Aa</label>
+          <button id="sq-go">Buscar</button>
+          <button id="sr-go" class="primary">Substituir nos selecionados</button>
+        </div>
+        <div id="search-body" class="validate-body"></div>
+      </div>
+
       <!-- Manual -->
       <div id="manual-view" class="hidden">
         <div class="graph-head">
@@ -663,6 +680,7 @@ mudanças e poderá sincronizar entre máquinas.
   <script src="git-panel.js"></script>
   <script src="graph-view.js"></script>
   <script src="health.js"></script>
+  <script src="search.js"></script>
   <script src="palette.js"></script>
   <script src="templates-ui.js"></script>
   <script src="renderer.js"></script>

@@ -384,6 +384,30 @@ app.whenReady().then(async () => {
   const okWiki = !!wiki && wiki.q1ok && wiki.q2null && wiki.q3null && wiki.hasMenu && wiki.items === 1 && wiki.firstTitle === 'Atlas' && wiki.inserted && wiki.closedAfterPick && wiki.cleaned;
   console.log('  wikilink [[:', JSON.stringify(wiki));
 
+  // Busca e substituição: painel renderiza resultados com destaque (sem IPC).
+  const search = await win.webContents.executeJavaScript(`(() => {
+    state.root = '/fake-search';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: Foo no título\\n---\\n# A\\nO atlas usa foo e FOO de novo.\\n' },
+      { relPath: 'processo/b.md', name: 'b.md', reserved: false, content: '---\\ntype: Processo\\ntitle: B\\n---\\n# B\\nnada relevante aqui.\\n' }
+    ];
+    indexDocs();
+    showSearch();
+    const shown = !document.getElementById('search-view').classList.contains('hidden');
+    document.getElementById('sq').value = 'foo';
+    document.getElementById('sc').checked = false;
+    runSearch();
+    const body = document.getElementById('search-body');
+    const items = body.querySelectorAll('.search-item').length;
+    const marks = body.querySelectorAll('.search-snip mark').length;
+    const picks = body.querySelectorAll('.search-pick').length;
+    const summary = body.querySelector('.search-summary') ? body.querySelector('.search-summary').textContent : '';
+    closeOverlays();
+    return { shown, items, marks, picks, summary };
+  })()`);
+  const okSearch = !!search && search.shown && search.items === 1 && search.marks >= 1 && search.picks === 1 && search.summary.indexOf('2 ocorrência') !== -1;
+  console.log('  busca/substituir:', JSON.stringify(search));
+
   const okGlobals = ['marked','OKF','G6','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
   const okBridge = result.okfBridge === 'object' && result.updateBridge === true && result.claudeBridge === true && result.gitBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
@@ -411,8 +435,9 @@ app.whenReady().then(async () => {
   console.log('  delta-reload OK:', okDelta);
   console.log('  saúde OK:', okHealth);
   console.log('  wikilink OK:', okWiki);
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && okHealth && okWiki && cspViolations.length === 0
+  console.log('  busca/substituir OK:', okSearch);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && okHealth && okWiki && okSearch && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && okHealth && okWiki && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && okHealth && okWiki && okSearch && cspViolations.length === 0 ? 0 : 1);
 });

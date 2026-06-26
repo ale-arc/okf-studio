@@ -47,7 +47,7 @@ contextBridge.exposeInMainWorld('okf', {
       'menu:open-folder', 'menu:open-sample', 'menu:new-concept', 'menu:new-library',
       'menu:save', 'menu:reload', 'menu:validate', 'menu:graph', 'menu:about', 'menu:manual',
       'menu:rebuild-indexes', 'menu:templates', 'menu:export-pdf', 'menu:import-doc',
-      'menu:switch-library', 'menu:health'
+      'menu:switch-library', 'menu:health', 'menu:search'
     ];
     if (valid.includes(channel)) ipcRenderer.on(channel, () => cb());
   }

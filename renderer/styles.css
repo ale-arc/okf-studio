@@ -248,6 +248,25 @@ button.update:disabled{opacity:1;color:#06281c}
 /* Saúde da biblioteca: cabeçalhos de seção + botão de correção */
 .v-section{margin:18px 0 8px;font-size:12px;font-weight:700;letter-spacing:.04em;
   text-transform:uppercase;color:var(--muted)}
+/* Busca e substituição */
+.search-bar{display:flex;gap:8px;align-items:center;padding:12px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.search-bar input[type=text]{flex:1;min-width:160px;padding:7px 10px;border:1px solid var(--line);
+  border-radius:7px;background:var(--bg);color:var(--text)}
+.search-bar .search-cs{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:13px;user-select:none}
+.search-bar button{padding:7px 12px;border:1px solid var(--line);border-radius:7px;background:var(--panel);
+  color:var(--text);cursor:pointer}
+.search-bar button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.search-empty{padding:18px 24px;color:var(--muted)}
+.search-summary{margin-bottom:10px;color:var(--muted);font-size:13px}
+.search-item{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:8px}
+.search-row{display:flex;align-items:center;gap:8px}
+.search-row .where{color:var(--accent);cursor:pointer;font-weight:600}
+.search-path{color:var(--muted);font-size:12px}
+.search-count{margin-left:auto;background:var(--bg);border:1px solid var(--line);border-radius:10px;
+  padding:0 8px;font-size:12px;color:var(--muted)}
+.search-snip{font-size:12px;color:var(--muted);margin-top:4px;white-space:pre-wrap;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.search-snip mark{background:var(--accent);color:#fff;border-radius:3px;padding:0 2px}
 .health-fix{margin-left:8px;padding:3px 10px;border:1px solid var(--line);border-radius:6px;
   background:var(--accent);color:#fff;font-size:12px;cursor:pointer}
 .health-fix:hover{filter:brightness(1.08)}
