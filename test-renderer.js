@@ -282,6 +282,23 @@ app.whenReady().then(async () => {
   const okCancel = cancel && cancel.ok === true;
   console.log('  cancelEdit sem doc:', JSON.stringify(cancel));
 
+  // Delta-reload: reloadFromDisk(delta) patcha a árvore sem readBundle.
+  const delta = await win.webContents.executeJavaScript(`(async () => {
+    state.root = '/fake5';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\n---\\n# A\\n' },
+      { relPath: 'projeto/b.md', name: 'b.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: B\\n---\\n# B\\n' }
+    ];
+    indexDocs(); state.collapsed = new Set(); state.favorites = new Set(); state.editing = false; state.current = null;
+    document.getElementById('type-filter').value = ''; document.getElementById('search').value = '';
+    setGroupMode('type');
+    await reloadFromDisk({ upserts: [{ relPath: 'processo/c.md', name: 'c.md', reserved: false, content: '---\\ntype: Processo\\ntitle: C\\n---\\n# C\\n' }], deletes: ['projeto/b.md'] });
+    const paths = state.docs.map(d => d.relPath).sort();
+    return { paths, count: state.docs.length };
+  })()`);
+  const okDelta = delta && delta.count === 2 && delta.paths.indexOf('processo/c.md') !== -1 && delta.paths.indexOf('projeto/b.md') === -1 && delta.paths.indexOf('projeto/a.md') !== -1;
+  console.log('  delta-reload:', JSON.stringify(delta));
+
   // Regressão: o datalist de tipos deve ser populado também ao ENTRAR EM EDIÇÃO,
   // não só ao criar um conceito novo. (Bug: enterEdit não chamava refreshTypeDatalist.)
   const datalist = await win.webContents.executeJavaScript(`(() => {
@@ -333,8 +350,9 @@ app.whenReady().then(async () => {
   console.log('  dnd OK:', okDnd && okDndFav);
   console.log('  sanitização OK:', okSani);
   console.log('  estabilidade OK:', okCancel);
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && cspViolations.length === 0
+  console.log('  delta-reload OK:', okDelta);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && cspViolations.length === 0 ? 0 : 1);
 });
