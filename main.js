@@ -11,6 +11,7 @@ const { registerGitHandlers } = require('./git.js');
 const { registerTemplateHandlers } = require('./templates.js');
 const { registerPdfHandlers } = require('./convert-pdf.js');
 const { registerRecentsHandlers } = require('./recents.js');
+const { orderOps } = require('./ops.js');
 
 let mainWindow = null;
 let manualUpdateCheck = false; // true when the user clicked "Verificar atualizações"
@@ -347,7 +348,7 @@ ipcMain.handle('fs:applyOps', async (_e, { root, ops }) => {
   libWatcher.pause();
   let applied = 0;
   try {
-    for (const op of (ops || [])) {
+    for (const op of orderOps(ops)) {
       if (op.op === 'create' || op.op === 'write') {
         const target = safeJoin(root, op.relPath);
         if (op.op === 'create' && fs.existsSync(target)) throw new Error('Já existe um arquivo em ' + op.relPath);
