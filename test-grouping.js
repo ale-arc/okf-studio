@@ -122,4 +122,17 @@ const doc = (relPath, fm, body) => ({ relPath, name: relPath.split('/').pop(), c
   assert.strictEqual(OKF.auto.withAddedTag(c0, '  '), c0); // tag vazia: inalterado
 }
 
+// parseDoc: equivale a parse e memoiza no doc (_p/_pSrc)
+{
+  const d = { relPath: 'p/a.md', content: OKF.serialize({ type: 'Projeto', title: 'A' }, '# A') };
+  const p1 = OKF.parseDoc(d);
+  assert.strictEqual(p1.frontmatter.type, 'Projeto');
+  assert.strictEqual(d._pSrc, d.content);
+  d._p = { frontmatter: { type: 'SENTINELA' }, body: '' };
+  assert.strictEqual(OKF.parseDoc(d).frontmatter.type, 'SENTINELA');
+  d.content = OKF.serialize({ type: 'Outro', title: 'A' }, '# A');
+  assert.strictEqual(OKF.parseDoc(d).frontmatter.type, 'Outro');
+  assert.deepStrictEqual(OKF.parseDoc({}).frontmatter, {});
+}
+
 console.log('test-grouping OK');
