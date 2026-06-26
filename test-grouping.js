@@ -65,4 +65,33 @@ const doc = (relPath, fm, body) => ({ relPath, name: relPath.split('/').pop(), c
   assert.ok(g.find(x => x.system), 'Sistema presente em Lista');
 }
 
+// favoritos: grupo "★ Favoritos" primeiro; item duplicado no grupo normal
+{
+  const docs = [
+    doc('projeto/a.md', { type: 'Projeto', title: 'Atlas' }),
+    doc('projeto/b.md', { type: 'Projeto', title: 'Bravo' }),
+  ];
+  const g = G(docs, 'type', new Set(['projeto/a.md']));
+  assert.strictEqual(g[0].favorites, true);
+  assert.strictEqual(g[0].key, OKF.auto.FAVORITES_GROUP_KEY);
+  assert.deepStrictEqual(g[0].items.map(i => i.title), ['Atlas']);
+  assert.deepStrictEqual(g.find(x => x.label === 'Projeto').items.map(i => i.title), ['Atlas', 'Bravo']);
+}
+
+// sem favoritos -> nenhum grupo Favoritos (e compat sem o 3º argumento)
+{
+  const docs = [doc('p/a.md', { type: 'Projeto', title: 'A' })];
+  assert.ok(!G(docs, 'type', new Set()).some(x => x.favorites));
+  assert.ok(!G(docs, 'type').some(x => x.favorites));
+}
+
+// reservado no set de favoritos é ignorado
+{
+  const docs = [
+    doc('p/a.md', { type: 'Projeto', title: 'A' }),
+    { relPath: 'index.md', name: 'index.md', content: '# Índice' },
+  ];
+  assert.ok(!G(docs, 'type', new Set(['index.md'])).some(x => x.favorites));
+}
+
 console.log('test-grouping OK');
