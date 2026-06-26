@@ -409,6 +409,55 @@ function toggleGroup(key) {
   renderTree();
 }
 
+// Decide se um grupo aceita o conceito arrastado (gate do destaque visual).
+function isValidDropTarget(g, rel) {
+  if (!rel || !g) return false;
+  const doc = docByRel(rel);
+  if (!doc || doc.reserved) return false;
+  if (g.favorites) return !state.favorites.has(rel);
+  if (g.system || g.special) return false;
+  if (g.key && g.key.indexOf('type:') === 0) {
+    const curType = OKF.parse(doc.content).frontmatter.type || '';
+    return OKF.auto.folderForType(curType) !== OKF.auto.folderForType(g.label);
+  }
+  if (g.key && g.key.indexOf('tag:') === 0) {
+    const tags = OKF.parse(doc.content).frontmatter.tags;
+    const arr = Array.isArray(tags) ? tags : (tags != null && String(tags).trim() !== '' ? [tags] : []);
+    return !arr.some(x => String(x).trim() === g.label);
+  }
+  return false;
+}
+
+// Executa a operação do drop conforme o grupo-alvo.
+async function handleDropOnGroup(rel, g) {
+  if (!isValidDropTarget(g, rel)) return;
+  const doc = docByRel(rel);
+  if (g.favorites) {
+    state.favorites.add(rel); saveFavorites(); renderTree();
+    toast('Favoritado', 'good');
+    return;
+  }
+  if (g.key.indexOf('type:') === 0) {
+    const newType = g.label;
+    const ok = await window.okf.confirm({
+      message: 'Mudar o tipo para "' + newType + '"?',
+      detail: 'O arquivo será movido para a pasta do tipo e os links atualizados.'
+    });
+    if (!ok) return;
+    const p = OKF.parse(doc.content);
+    const content = OKF.serialize(Object.assign({}, p.frontmatter, { type: newType }), p.body);
+    const dest = await changeConceptType(rel, newType, content);
+    if (dest) toast('Tipo alterado para ' + newType, 'good');
+    return;
+  }
+  if (g.key.indexOf('tag:') === 0) {
+    const content = OKF.auto.withAddedTag(doc.content, g.label);
+    const ok = await applyOpsAndRefresh([{ op: 'write', relPath: rel, content }], rel);
+    if (ok) toast('Tag "' + g.label + '" adicionada', 'good');
+    return;
+  }
+}
+
 /* ---------- Tree ---------- */
 function renderTree() {
   const tree = $('tree');
@@ -453,6 +502,9 @@ function renderTree() {
         `<span class="g-label"></span><span class="g-count">${g.items.length}</span>`;
       head.querySelector('.g-label').textContent = g.label;
       head.addEventListener('click', () => toggleGroup(g.key));
+      head.addEventListener('dragover', (e) => { if (isValidDropTarget(g, draggedRel)) { e.preventDefault(); head.classList.add('drag-over'); } });
+      head.addEventListener('dragleave', () => head.classList.remove('drag-over'));
+      head.addEventListener('drop', (e) => { e.preventDefault(); head.classList.remove('drag-over'); const rel = draggedRel; draggedRel = null; handleDropOnGroup(rel, g); });
       tree.appendChild(head);
       if (collapsed) continue;
     }
@@ -469,6 +521,14 @@ function renderTree() {
       if (showBadge) node.querySelector('.badge').textContent = it.type;
       node.addEventListener('click', () => openDoc(it.relPath));
       if (!it.reserved) node.addEventListener('contextmenu', (e) => { e.preventDefault(); openTreeMenu(e, it.relPath); });
+      if (!it.reserved) {
+        node.setAttribute('draggable', 'true');
+        node.addEventListener('dragstart', (e) => {
+          draggedRel = it.relPath;
+          if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', it.relPath); } catch (_) {} }
+        });
+        node.addEventListener('dragend', () => { draggedRel = null; });
+      }
       tree.appendChild(node);
     }
   }
@@ -496,6 +556,7 @@ function refreshTypeDatalist() {
 
 /* ---------- Menu de contexto da árvore ---------- */
 let treeMenuRel = null;
+let draggedRel = null; // relPath do conceito sendo arrastado
 function openTreeMenu(e, rel) {
   treeMenuRel = rel;
   const favBtn = $('tree-menu').querySelector('button[data-act="favorite"]');
