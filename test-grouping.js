@@ -107,4 +107,19 @@ const doc = (relPath, fm, body) => ({ relPath, name: relPath.split('/').pop(), c
   assert.deepStrictEqual(flat.items.map(i => i.title), ['A', 'B']);
 }
 
+// withAddedTag: adiciona, idempotente, cria tags, preserva resto
+{
+  const c0 = OKF.serialize({ type: 'Projeto', title: 'A' }, '# A\n\nCorpo.');
+  const c1 = OKF.auto.withAddedTag(c0, 'alpha');
+  const p1 = OKF.parse(c1);
+  assert.deepStrictEqual(p1.frontmatter.tags, ['alpha']);
+  assert.strictEqual(p1.frontmatter.type, 'Projeto');
+  assert.ok(/Corpo\./.test(p1.body));
+  const c2 = OKF.auto.withAddedTag(c1, 'beta');
+  assert.deepStrictEqual(OKF.parse(c2).frontmatter.tags, ['alpha', 'beta']);
+  const c3 = OKF.auto.withAddedTag(c2, 'alpha'); // já presente
+  assert.strictEqual(c3, c2);
+  assert.strictEqual(OKF.auto.withAddedTag(c0, '  '), c0); // tag vazia: inalterado
+}
+
 console.log('test-grouping OK');

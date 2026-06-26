@@ -372,3 +372,8 @@ button.update:disabled{opacity:1;color:#06281c}
 
 /* ---------- Sidebar: marcador de favorito ---------- */
 .tree .node .fav-mark { color: var(--warn); font-size: 11px; margin-left: 6px; }
+
+/* ---------- Sidebar: alvo de drop (drag-and-drop) ---------- */
+.tree .group-head.drag-over { background: var(--active); color: var(--accent); border-radius: 6px; }
+/* spans internos não capturam eventos de drag (evita flicker do dragleave) */
+.tree .group-head .caret, .tree .group-head .g-label, .tree .group-head .g-count { pointer-events: none; }
