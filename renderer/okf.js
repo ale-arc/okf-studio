@@ -417,7 +417,57 @@
     return out;
   }
 
-  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg };
+  const SYSTEM_GROUP_KEY = '__system__';
+  const FAVORITES_GROUP_KEY = '__favorites__';
+  // Agrupa conceitos para a árvore da sidebar. mode ∈ {'type','tag','flat'}.
+  // Retorna grupos ordenados: normais alfabéticos; "Sem tipo"/"Sem tag" depois;
+  // "Sistema" (reservados) sempre por último. Em 'tag', um conceito com várias
+  // tags aparece em cada grupo de tag (duplicado).
+  function groupConcepts(docs, mode, favorites) {
+    const list = Array.isArray(docs) ? docs : [];
+    const favs = favorites instanceof Set ? favorites : new Set(Array.isArray(favorites) ? favorites : []);
+    const NOTYPE = '__notype__', NOTAG = '__notag__', FLAT = '__all__';
+    const groups = new Map();
+    const ensure = (key, label, opts) => {
+      if (!groups.has(key)) groups.set(key, {
+        key, label,
+        special: !!(opts && opts.special),
+        system: !!(opts && opts.system),
+        favorites: !!(opts && opts.favorites),
+        items: []
+      });
+      return groups.get(key);
+    };
+    for (const d of list) {
+      const f = parse(d.content == null ? '' : d.content).frontmatter || {};
+      const reserved = isReserved(d.relPath);
+      const base = d.relPath.split('/').pop().replace(/\.md$/i, '');
+      const title = (f.title != null && String(f.title).trim() !== '') ? String(f.title) : base;
+      const type = reserved ? '' : ((f.type != null && String(f.type).trim() !== '') ? String(f.type).trim() : '');
+      const item = { relPath: d.relPath, title, type, reserved };
+      if (!reserved && favs.has(d.relPath)) ensure(FAVORITES_GROUP_KEY, '★ Favoritos', { favorites: true }).items.push(item);
+      if (reserved) { ensure(SYSTEM_GROUP_KEY, 'Sistema', { special: true, system: true }).items.push(item); continue; }
+      if (mode === 'flat') { ensure(FLAT, '', {}).items.push(item); continue; }
+      if (mode === 'tag') {
+        const tags = Array.isArray(f.tags)
+          ? f.tags.map(t => String(t).trim()).filter(Boolean)
+          : (f.tags != null && String(f.tags).trim() !== '' ? [String(f.tags).trim()] : []);
+        if (!tags.length) ensure(NOTAG, 'Sem tag', { special: true }).items.push(item);
+        else for (const t of tags) ensure('tag:' + t, t, {}).items.push(item);
+        continue;
+      }
+      if (!type) ensure(NOTYPE, 'Sem tipo', { special: true }).items.push(item);
+      else ensure('type:' + type, type, {}).items.push(item);
+    }
+    for (const g of groups.values()) g.items.sort((a, b) => a.title.localeCompare(b.title));
+    const rank = (g) => g.favorites ? -1 : (g.system ? 3 : (g.special ? 2 : (g.key === FLAT ? 0 : 1)));
+    return [...groups.values()].sort((a, b) => {
+      const ra = rank(a), rb = rank(b);
+      return ra !== rb ? ra - rb : a.label.localeCompare(b.label);
+    });
+  }
+
+  const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg, groupConcepts, SYSTEM_GROUP_KEY, FAVORITES_GROUP_KEY };
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, serialize,

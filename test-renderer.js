@@ -160,6 +160,92 @@ app.whenReady().then(async () => {
   const okGraph = g6 && g6.loaded && g6.rendered;
   console.log('  G6 graph:', JSON.stringify(g6));
 
+  // Sidebar: agrupamento por modo e colapso refletem no DOM.
+  const sidebar = await win.webContents.executeJavaScript(`(() => {
+    state.root = '/fake';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\ntags: [x, y]\\n---\\n# A\\n' },
+      { relPath: 'processo/b.md', name: 'b.md', reserved: false, content: '---\\ntype: Processo\\ntitle: B\\ntags: [x]\\n---\\n# B\\n' },
+      { relPath: 'index.md', name: 'index.md', reserved: true, content: '# Índice' }
+    ];
+    indexDocs();
+    state.collapsed = new Set();
+    document.getElementById('type-filter').value = '';
+    document.getElementById('search').value = '';
+    setGroupMode('type'); renderTree();
+    const heads = () => [...document.querySelectorAll('#tree .group-head .g-label')].map(e => e.textContent);
+    const typeHeads = heads();
+    setGroupMode('tag'); renderTree();
+    const tagHeads = heads();
+    setGroupMode('flat'); renderTree();
+    const flatHeads = heads();
+    setGroupMode('type'); renderTree();
+    const before = document.querySelectorAll('#tree .node').length;
+    toggleGroup('type:Projeto');
+    const after = document.querySelectorAll('#tree .node').length;
+    return { typeHeads, tagHeads, flatHeads, before, after };
+  })()`);
+  const okSidebar = sidebar &&
+    sidebar.typeHeads.includes('Projeto') && sidebar.typeHeads.includes('Processo') && sidebar.typeHeads.includes('Sistema') &&
+    sidebar.tagHeads.includes('x') && sidebar.tagHeads.includes('y') &&
+    sidebar.flatHeads.length === 1 && sidebar.flatHeads[0] === 'Sistema' &&
+    sidebar.after < sidebar.before;
+  console.log('  sidebar agrupamento/colapso:', JSON.stringify(sidebar));
+
+  // Favoritos: favoritar via toggleFavorite mostra o grupo no topo; desfavoritar remove.
+  const fav = await win.webContents.executeJavaScript(`(() => {
+    state.root = '/fake2';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\n---\\n# A\\n' }
+    ];
+    indexDocs();
+    state.collapsed = new Set();
+    state.favorites = new Set();
+    document.getElementById('type-filter').value = '';
+    document.getElementById('search').value = '';
+    setGroupMode('type'); renderTree();
+    const labels = () => [...document.querySelectorAll('#tree .group-head .g-label')].map(e => e.textContent);
+    const beforeFav = labels().some(l => l.indexOf('Favoritos') >= 0);
+    toggleFavorite('projeto/a.md');
+    const after = labels();
+    const hasFav = after.some(l => l.indexOf('Favoritos') >= 0);
+    const favFirst = !!(after[0] && after[0].indexOf('Favoritos') >= 0);
+    const marks = document.querySelectorAll('#tree .fav-mark').length;
+    toggleFavorite('projeto/a.md');
+    const removed = labels().some(l => l.indexOf('Favoritos') >= 0);
+    return { beforeFav, hasFav, favFirst, marks, removed };
+  })()`);
+  const okFav = fav && fav.beforeFav === false && fav.hasFav === true &&
+    fav.favFirst === true && fav.marks >= 1 && fav.removed === false;
+  console.log('  favoritos grupo/marcador:', JSON.stringify(fav));
+
+  // Regressão: o datalist de tipos deve ser populado também ao ENTRAR EM EDIÇÃO,
+  // não só ao criar um conceito novo. (Bug: enterEdit não chamava refreshTypeDatalist.)
+  const datalist = await win.webContents.executeJavaScript(`(() => {
+    state.root = '/fake';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\n---\\n# A\\n' },
+      { relPath: 'processo/b.md', name: 'b.md', reserved: false, content: '---\\ntype: Processo\\ntitle: B\\n---\\n# B\\n' }
+    ];
+    indexDocs();
+    const dl = document.getElementById('type-options');
+    const savedEditor = window.OKFEditor;
+    window.OKFEditor = null; // força modo Código no enterEdit (evita o milkdown no teste)
+    dl.innerHTML = '';
+    state.current = 'projeto/a.md';
+    try { enterEdit(); } catch (e) {}
+    const edit = dl.options.length;
+    try { cancelEdit(); } catch (e) {}
+    window.OKFEditor = savedEditor;
+    dl.innerHTML = '';
+    openModal(); // controle: criar conceito já funcionava
+    const novo = dl.options.length;
+    closeModal();
+    return { edit, novo };
+  })()`);
+  const okDatalist = !!datalist && datalist.edit >= 2 && datalist.novo >= 2;
+  console.log('  datalist tipos (edicao/novo):', JSON.stringify(datalist));
+
   const okGlobals = ['marked','OKF','G6','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
   const okBridge = result.okfBridge === 'object' && result.updateBridge === true && result.claudeBridge === true && result.gitBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
@@ -178,8 +264,11 @@ app.whenReady().then(async () => {
   console.log('  window.OKFEditor presente:', result.editorGlobal);
   console.log('  paleta + modelos:', result.paletteUI, templatesCheck);
   console.log('  CSP violations:', cspViolations.length ? cspViolations : 'none');
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && cspViolations.length === 0
+  console.log('  datalist tipos populado (edição + novo):', okDatalist);
+  console.log('  sidebar OK:', okSidebar);
+  console.log('  favoritos OK:', okFav);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && cspViolations.length === 0 ? 0 : 1);
 });

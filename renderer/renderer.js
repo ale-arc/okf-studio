@@ -13,6 +13,8 @@ const state = {
   editorBody: '',
   linkSuggestions: [],
   templates: [],
+  collapsed: new Set(),
+  favorites: new Set(),
 };
 
 /* ---------- Modelos do usuário (fora da biblioteca) ---------- */
@@ -176,6 +178,78 @@ function fmtTimestamp(v) {
   return String(v);
 }
 
+/* ---------- Data relativa para os recentes ---------- */
+function relTime(ms, now) {
+  const t = Number(ms) || 0;
+  const ref = now || Date.now();
+  const s = Math.max(0, Math.floor((ref - t) / 1000));
+  if (s < 60) return 'agora';
+  const min = Math.floor(s / 60);
+  if (min < 60) return 'há ' + min + ' min';
+  const h = Math.floor(min / 60);
+  if (h < 24) return 'há ' + h + ' h';
+  const d = Math.floor(h / 24);
+  if (d === 1) return 'ontem';
+  if (d <= 7) return 'há ' + d + ' dias';
+  const dt = new Date(t);
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  return dd + '/' + mm + '/' + dt.getFullYear();
+}
+
+/* ---------- Tela inicial (bibliotecas recentes) ---------- */
+async function showStart() {
+  closeOverlays();
+  $('viewer').classList.add('hidden');
+  $('empty').classList.remove('hidden');
+  let list = [];
+  try { list = await window.okf.recents.list(); } catch (e) { list = []; }
+  renderRecents(list);
+}
+
+function renderRecents(list) {
+  const wrap = $('recent-list');
+  if (!wrap) return;
+  if (!list || !list.length) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  wrap.classList.remove('hidden');
+  wrap.innerHTML = list.map(e => {
+    const cls = 'recent-item' + (e.exists ? '' : ' missing');
+    const favIcon = e.exists ? (e.favorite ? '★' : '☆') : '⚠';
+    const when = e.exists ? escapeHtml(relTime(e.lastOpened)) : 'Pasta não encontrada';
+    return `<div class="${cls}" data-path="${escapeAttr(e.path)}" data-name="${escapeAttr(e.name || '')}" data-exists="${e.exists ? '1' : '0'}">` +
+      `<button class="recent-fav" title="Favoritar" data-fav="${escapeAttr(e.path)}">${favIcon}</button>` +
+      `<div class="recent-main"><div class="recent-name">${escapeHtml(e.name || e.path.split(/[\\/]/).pop())}</div>` +
+      `<div class="recent-path">${escapeHtml(e.path)}</div></div>` +
+      `<span class="recent-when">${when}</span>` +
+      `<button class="recent-remove" title="Remover da lista" data-remove="${escapeAttr(e.path)}">✕</button>` +
+      `</div>`;
+  }).join('');
+  wrap.querySelectorAll('.recent-item').forEach(el => el.addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-fav]') || ev.target.closest('[data-remove]')) return;
+    if (el.dataset.exists === '0') { toast('Pasta não encontrada', 'bad'); return; }
+    openRecent(el.dataset.path, el.dataset.name);
+  }));
+  wrap.querySelectorAll('[data-fav]').forEach(b => b.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    renderRecents(await window.okf.recents.toggleFavorite({ path: b.dataset.fav }));
+  }));
+  wrap.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    renderRecents(await window.okf.recents.remove({ path: b.dataset.remove }));
+  }));
+}
+
+async function openRecent(p, name) {
+  let res;
+  try { res = await window.okf.readBundle(p); }
+  catch (e) { toast('Não foi possível abrir a biblioteca.', 'bad'); return; }
+  const nm = name || p.split(/[\\/]/).pop();
+  loadBundle(res, nm);
+  await window.okf.recents.add({ path: p, name: nm });
+}
+
+function switchLibrary() { showStart(); }
+
 /* ---------- Toast ---------- */
 let toastTimer;
 function toast(msg, kind) {
@@ -191,7 +265,9 @@ async function openFolder() {
   const dir = await window.okf.openFolder();
   if (!dir) return;
   const res = await window.okf.readBundle(dir);
-  loadBundle(res, dir.split(/[\\/]/).pop());
+  const name = dir.split(/[\\/]/).pop();
+  loadBundle(res, name);
+  await window.okf.recents.add({ path: dir, name });
 }
 async function openSample() {
   const res = await window.okf.readSample();
@@ -220,6 +296,7 @@ async function doCreateLibrary() {
   closeNewLib();
   const res = await window.okf.readBundle(dir);
   loadBundle(res, name);
+  await window.okf.recents.add({ path: dir, name });
   toast('Biblioteca criada em ' + dir, 'good');
 }
 
@@ -273,8 +350,12 @@ function loadBundle(res, name) {
   state.name = name;
   state.docs = res.docs || [];
   indexDocs();
+  state.collapsed = loadCollapsedSet();
+  state.favorites = loadFavoritesSet();
   $('bundle-name').textContent = name + '  ·  ' + state.docs.length + ' arquivos';
   ['btn-reload','btn-new','btn-graph','btn-validate','btn-claude','btn-git','search','type-filter'].forEach(id => $(id).disabled = false);
+  document.querySelectorAll('#group-seg button').forEach(b => b.disabled = false);
+  updateGroupModeButtons();
   buildTypeFilter();
   renderTree();
   closeOverlays();
@@ -292,54 +373,102 @@ function indexDocs() {
   state.graph = OKF.buildGraph(state.docs);
 }
 
+/* ---------- Agrupamento e colapso da árvore ---------- */
+function currentGroupMode() {
+  try { const m = localStorage.getItem('okf-group-mode'); return (m === 'tag' || m === 'flat') ? m : 'type'; }
+  catch (e) { return 'type'; }
+}
+function setGroupMode(mode) { try { localStorage.setItem('okf-group-mode', mode); } catch (e) {} }
+function updateGroupModeButtons() {
+  const mode = currentGroupMode();
+  document.querySelectorAll('#group-seg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+}
+function collapseKey() { return 'okf-collapsed:' + (state.root || ''); }
+function loadCollapsedSet() {
+  let raw = null;
+  try { raw = localStorage.getItem(collapseKey()); } catch (e) {}
+  if (raw == null) return new Set([OKF.auto.SYSTEM_GROUP_KEY]); // 1ª vez: Sistema recolhido
+  try { const a = JSON.parse(raw); return new Set(Array.isArray(a) ? a : []); } catch (e) { return new Set(); }
+}
+function saveCollapsed(set) { try { localStorage.setItem(collapseKey(), JSON.stringify([...set])); } catch (e) {} }
+function favoritesKey() { return 'okf-favorites:' + (state.root || ''); }
+function loadFavoritesSet() {
+  try { const a = JSON.parse(localStorage.getItem(favoritesKey())); return new Set(Array.isArray(a) ? a : []); }
+  catch (e) { return new Set(); }
+}
+function saveFavorites() { try { localStorage.setItem(favoritesKey(), JSON.stringify([...state.favorites])); } catch (e) {} }
+function toggleFavorite(rel) {
+  if (!rel) return;
+  if (state.favorites.has(rel)) state.favorites.delete(rel); else state.favorites.add(rel);
+  saveFavorites();
+  renderTree();
+}
+function toggleGroup(key) {
+  if (state.collapsed.has(key)) state.collapsed.delete(key); else state.collapsed.add(key);
+  saveCollapsed(state.collapsed);
+  renderTree();
+}
+
 /* ---------- Tree ---------- */
 function renderTree() {
   const tree = $('tree');
   tree.innerHTML = '';
   const q = ($('search').value || '').toLowerCase().trim();
   const typeF = $('type-filter').value;
+  const mode = currentGroupMode();
 
-  // group by top-level directory
-  const groups = new Map();
-  for (const d of state.docs) {
+  // 1) filtro (busca + tipo) — mesma semântica de antes
+  const filtered = state.docs.filter(d => {
     const p = parsedOf(d);
     const id = OKF.conceptId(d.relPath);
-    const title = p.frontmatter.title || d.name.replace(/\.md$/i,'');
-    const type = d.reserved ? '' : (p.frontmatter.type || 'Sem tipo');
-    const tags = Array.isArray(p.frontmatter.tags) ? p.frontmatter.tags.join(' ') : '';
-    // filters
-    if (typeF && type !== typeF) continue;
-    const body = (p.body || '').toLowerCase();
-    if (q && !(title.toLowerCase().includes(q) || id.toLowerCase().includes(q) || tags.toLowerCase().includes(q) || body.includes(q))) continue;
+    const title = p.frontmatter.title || d.name.replace(/\.md$/i, '');
+    const type = d.reserved ? '' : (p.frontmatter.type || '');
+    if (typeF && type !== typeF) return false;
+    if (q) {
+      const tags = Array.isArray(p.frontmatter.tags) ? p.frontmatter.tags.join(' ') : (p.frontmatter.tags || '');
+      const body = (p.body || '').toLowerCase();
+      if (!(title.toLowerCase().includes(q) || id.toLowerCase().includes(q) ||
+            String(tags).toLowerCase().includes(q) || body.includes(q))) return false;
+    }
+    return true;
+  });
 
-    const dir = d.relPath.includes('/') ? d.relPath.replace(/\/[^/]*$/,'') : '(raiz)';
-    if (!groups.has(dir)) groups.set(dir, []);
-    groups.get(dir).push({ d, title, type });
-  }
-
-  if (!groups.size) {
+  // 2) agrupar
+  const groups = OKF.auto.groupConcepts(filtered, mode, state.favorites);
+  if (!groups.some(g => g.items.length)) {
     tree.innerHTML = '<div class="dir">Nenhum resultado</div>';
     return;
   }
-  for (const [dir, items] of [...groups.entries()].sort()) {
-    const dh = document.createElement('div');
-    dh.className = 'dir';
-    dh.textContent = dir;
-    tree.appendChild(dh);
-    items.sort((a,b)=> a.d.reserved===b.d.reserved ? a.title.localeCompare(b.title) : (a.d.reserved?-1:1));
-    for (const it of items) {
+
+  // 3) desenhar
+  for (const g of groups) {
+    if (!g.items.length) continue;
+    const headless = (mode === 'flat' && !g.system && !g.favorites); // lista plana não tem cabeçalho (favoritos e sistema têm)
+    let collapsed = false;
+    if (!headless) {
+      collapsed = state.collapsed.has(g.key);
+      const head = document.createElement('div');
+      head.className = 'group-head' + (collapsed ? ' collapsed' : '');
+      head.innerHTML = `<span class="caret">${collapsed ? '▸' : '▾'}</span>` +
+        `<span class="g-label"></span><span class="g-count">${g.items.length}</span>`;
+      head.querySelector('.g-label').textContent = g.label;
+      head.addEventListener('click', () => toggleGroup(g.key));
+      tree.appendChild(head);
+      if (collapsed) continue;
+    }
+    for (const it of g.items) {
       const node = document.createElement('div');
-      node.className = 'node' + (it.d.reserved ? ' reserved' : '') + (it.d.relPath===state.current ? ' active' : '');
-      node.dataset.rel = it.d.relPath;
-      node.innerHTML = `<span class="ic">${it.d.reserved ? '◷' : '📄'}</span>` +
-        `<span class="ttl"></span>` +
-        (it.type ? `<span class="badge"></span>` : '');
+      node.className = 'node' + (it.reserved ? ' reserved' : '') + (it.relPath === state.current ? ' active' : '');
+      node.dataset.rel = it.relPath;
+      const showBadge = it.type && mode !== 'type'; // no modo Tipo o badge é redundante
+      const isFav = !it.reserved && state.favorites.has(it.relPath);
+      node.innerHTML = `<span class="ic">${it.reserved ? '◷' : '📄'}</span><span class="ttl"></span>` +
+        (showBadge ? `<span class="badge"></span>` : '') +
+        (isFav ? `<span class="fav-mark" title="Favorito">★</span>` : '');
       node.querySelector('.ttl').textContent = it.title;
-      if (it.type) node.querySelector('.badge').textContent = it.type;
-      node.addEventListener('click', () => openDoc(it.d.relPath));
-      if (!it.d.reserved) {
-        node.addEventListener('contextmenu', (e) => { e.preventDefault(); openTreeMenu(e, it.d.relPath); });
-      }
+      if (showBadge) node.querySelector('.badge').textContent = it.type;
+      node.addEventListener('click', () => openDoc(it.relPath));
+      if (!it.reserved) node.addEventListener('contextmenu', (e) => { e.preventDefault(); openTreeMenu(e, it.relPath); });
       tree.appendChild(node);
     }
   }
@@ -369,6 +498,8 @@ function refreshTypeDatalist() {
 let treeMenuRel = null;
 function openTreeMenu(e, rel) {
   treeMenuRel = rel;
+  const favBtn = $('tree-menu').querySelector('button[data-act="favorite"]');
+  if (favBtn) favBtn.textContent = state.favorites.has(rel) ? '☆ Remover dos favoritos' : '★ Favoritar';
   const m = $('tree-menu');
   m.style.left = e.clientX + 'px';
   m.style.top = e.clientY + 'px';
@@ -377,7 +508,7 @@ function openTreeMenu(e, rel) {
 function closeTreeMenu() { $('tree-menu').classList.add('hidden'); treeMenuRel = null; }
 
 /* ---------- View states ---------- */
-function showEmpty(){ $('empty').classList.remove('hidden'); $('viewer').classList.add('hidden'); }
+function showEmpty(){ $('empty').classList.remove('hidden'); $('viewer').classList.add('hidden'); $('recent-list').classList.add('hidden'); }
 function showViewer(){ $('empty').classList.add('hidden'); $('viewer').classList.remove('hidden'); }
 function closeOverlays(){ $('graph-view').classList.add('hidden'); $('validate-view').classList.add('hidden'); $('manual-view').classList.add('hidden'); $('git-view').classList.add('hidden'); }
 
@@ -646,6 +777,7 @@ async function enterEdit() {
   }
 
   $('editor-toolbar').classList.remove('hidden');
+  refreshTypeDatalist(); // popula o datalist com os tipos existentes (como em openModal)
   $('e-type').value = f.type || '';
   $('e-title').value = f.title || '';
   $('e-description').value = f.description || '';
@@ -868,7 +1000,11 @@ async function performMove(fromRel, toRel, logEntry, movedContentOverride) {
     ops.push(...indexOpsFrom(nextDocs));
     if (logEntry) ops.push(logOpFrom(nextDocs, logEntry));
   }
-  return applyOpsAndRefresh(ops, toRel);
+  const movedOk = await applyOpsAndRefresh(ops, toRel);
+  if (movedOk && state.favorites.has(fromRel)) {
+    state.favorites.delete(fromRel); state.favorites.add(toRel); saveFavorites(); renderTree();
+  }
+  return movedOk;
 }
 
 /* ---------- Renomear / Mover ---------- */
@@ -975,6 +1111,7 @@ function paletteActions() {
     { label: 'Alternar tema claro/escuro', run: toggleTheme, needsLib: false },
     { label: 'Abrir biblioteca…', run: openFolder, needsLib: false },
     { label: 'Carregar biblioteca de exemplo', run: openSample, needsLib: false },
+    { label: 'Trocar biblioteca…', run: switchLibrary, needsLib: false },
     { label: 'Nova biblioteca…', run: newLibrary, needsLib: false },
     { label: 'Exportar conceito como PDF', run: () => window.OKFConvertUI.exportCurrentPdf(), needsLib: true },
     { label: 'Importar documento (PDF/DOCX/HTML/TXT)', run: () => window.OKFConvertUI.importDocument(), needsLib: true },
@@ -1359,6 +1496,7 @@ function init() {
   window.okf.onBundleChanged(() => { reloadFromDisk(); if (!$('git-view').classList.contains('hidden')) refreshGit(); });
   $('empty-open').onclick = openFolder;
   $('empty-sample').onclick = openSample;
+  $('empty-new').onclick = newLibrary;
   $('btn-edit').onclick = enterEdit;
   $('btn-save').onclick = saveEdit;
   $('btn-cancel').onclick = cancelEdit;
@@ -1384,7 +1522,8 @@ function init() {
   $('tree-menu').querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', () => {
     const rel = treeMenuRel; const act = b.dataset.act; closeTreeMenu();
     if (!rel) return;
-    if (act === 'rename') openRename(rel);
+    if (act === 'favorite') toggleFavorite(rel);
+    else if (act === 'rename') openRename(rel);
     else if (act === 'delete') { openDoc(rel); deleteCurrent(); }
   }));
   document.addEventListener('click', (e) => { if (!$('tree-menu').contains(e.target)) closeTreeMenu(); });
@@ -1421,10 +1560,14 @@ function init() {
   $('e-now').onclick = () => $('e-timestamp').value = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   $('search').addEventListener('input', renderTree);
   $('type-filter').addEventListener('change', renderTree);
+  document.querySelectorAll('#group-seg button').forEach(b => b.addEventListener('click', () => {
+    setGroupMode(b.dataset.mode); updateGroupModeButtons(); renderTree();
+  }));
 
   // menu events from main process
   window.okf.onMenu('menu:open-folder', openFolder);
   window.okf.onMenu('menu:open-sample', openSample);
+  window.okf.onMenu('menu:switch-library', switchLibrary);
   window.okf.onMenu('menu:new-concept', openModal);
   window.okf.onMenu('menu:save', () => { if (state.editing) saveEdit(); });
   window.okf.onMenu('menu:reload', reload);
@@ -1438,6 +1581,7 @@ function init() {
   loadVersion();
   wireUpdates();
   loadTemplates();
+  showStart();
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); openPalette(); return; }
