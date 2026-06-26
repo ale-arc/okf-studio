@@ -334,11 +334,16 @@ async function openClaude() {
 }
 
 /* ---------- Recarga ao vivo (watcher) ---------- */
-async function reloadFromDisk() {
+async function reloadFromDisk(delta) {
   if (!state.root) return;
-  let res;
-  try { res = await window.okf.readBundle(state.root); } catch (e) { return; }
-  const newDocs = res.docs || [];
+  let newDocs;
+  if (delta && (delta.upserts || delta.deletes)) {
+    newDocs = OKF.applyDelta(state.docs, delta); // mudança externa: só o delta
+  } else {
+    let res;
+    try { res = await window.okf.readBundle(state.root); } catch (e) { return; } // full (fallback)
+    newDocs = res.docs || [];
+  }
 
   // Edição em andamento: nunca sobrescrever o editor.
   if (state.editing && state.current) {
@@ -350,7 +355,7 @@ async function reloadFromDisk() {
     return;
   }
 
-  // Sem edição: atualização completa preservando a seleção.
+  // Sem edição: atualização preservando a seleção.
   state.docs = newDocs; indexDocs(); buildTypeFilter(); renderTree(); refreshTypeDatalist();
   $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
   if (state.current && state.docs.some(d => d.relPath === state.current)) {
@@ -1581,7 +1586,7 @@ function init() {
   $('git-do-push').onclick = gitPush;
   $('disk-reload').onclick = () => { $('disk-banner').classList.add('hidden'); cancelEdit(); reloadFromDisk(); };
   $('disk-keep').onclick = () => $('disk-banner').classList.add('hidden');
-  window.okf.onBundleChanged(() => { reloadFromDisk(); if (!$('git-view').classList.contains('hidden')) refreshGit(); });
+  window.okf.onBundleChanged((delta) => { reloadFromDisk(delta); if (!$('git-view').classList.contains('hidden')) refreshGit(); });
   $('empty-open').onclick = openFolder;
   $('empty-sample').onclick = openSample;
   $('empty-new').onclick = newLibrary;
