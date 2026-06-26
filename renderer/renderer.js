@@ -999,7 +999,7 @@ async function saveEdit() {
     if ($('e-title').value.trim()) fm.title = $('e-title').value.trim();
     if ($('e-description').value.trim()) fm.description = $('e-description').value.trim();
     if ($('e-resource').value.trim()) fm.resource = $('e-resource').value.trim();
-    const tags = $('e-tags').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const tags = OKF.auto.parseTags($('e-tags').value);
     if (tags.length) fm.tags = tags;
     if ($('e-timestamp').value.trim()) fm.timestamp = $('e-timestamp').value.trim();
     const extraRaw = $('e-extra').value.trim();
@@ -1275,7 +1275,7 @@ async function createConcept() {
   if (docByRel(rel)) { toast('Já existe um conceito em ' + rel, 'bad'); return; }
   const fm = { type, title };
   if ($('m-description').value.trim()) fm.description = $('m-description').value.trim();
-  const tags = $('m-tags').value.split(',').map(s => s.trim()).filter(Boolean);
+  const tags = OKF.auto.parseTags($('m-tags').value);
   if (tags.length) fm.tags = tags;
   fm.timestamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const tpl = state.templates.find(t => t.name === $('m-template').value);
@@ -1360,7 +1360,7 @@ async function saveTpl() {
   const fm = {};
   const type = $('tpl-type').value.trim(); if (type) fm.type = type;
   const desc = $('tpl-description').value.trim(); if (desc) fm.description = desc;
-  const tags = $('tpl-tags').value.split(',').map(s => s.trim()).filter(Boolean); if (tags.length) fm.tags = tags;
+  const tags = OKF.auto.parseTags($('tpl-tags').value); if (tags.length) fm.tags = tags;
   const content = OKF.serialize(fm, $('tpl-body').value);
   const r = await window.okf.templates.save({ name, content, oldName: tplSelected });
   if (!r || !r.ok) { toast('Erro: ' + ((r && r.error) || 'desconhecido'), 'bad'); return; }
