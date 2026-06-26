@@ -73,6 +73,7 @@
       "git.js",
       "templates.js",
       "recents.js",
+      "ops.js",
       "convert-pdf.js",
       "src/convert/**/*",
       "renderer/**/*",
