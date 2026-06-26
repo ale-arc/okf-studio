@@ -171,6 +171,12 @@ function parsedOf(doc) {
   return doc._p;
 }
 
+/* Corpo do doc em minúsculas, memoizado (para a busca não re-baixar toda vez). */
+function bodyLcOf(doc) {
+  if (doc._blcSrc !== doc.content) { doc._blc = (parsedOf(doc).body || '').toLowerCase(); doc._blcSrc = doc.content; }
+  return doc._blc;
+}
+
 /* Timestamps ISO são lidos pelo js-yaml como Date — formata de volta para ISO
    (sem milissegundos) para não corromper o campo ao exibir/editar/salvar. */
 function fmtTimestamp(v) {
@@ -475,7 +481,7 @@ function renderTree() {
     if (typeF && type !== typeF) return false;
     if (q) {
       const tags = Array.isArray(p.frontmatter.tags) ? p.frontmatter.tags.join(' ') : (p.frontmatter.tags || '');
-      const body = (p.body || '').toLowerCase();
+      const body = bodyLcOf(d);
       if (!(title.toLowerCase().includes(q) || id.toLowerCase().includes(q) ||
             String(tags).toLowerCase().includes(q) || body.includes(q))) return false;
     }
@@ -1627,7 +1633,8 @@ function init() {
   $('cm-cancel').onclick = closeConceptPicker;
   $('cm-search').addEventListener('input', e => renderConceptList(e.target.value));
   $('e-now').onclick = () => $('e-timestamp').value = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-  $('search').addEventListener('input', renderTree);
+  let searchTimer = null;
+  $('search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderTree, 150); });
   $('type-filter').addEventListener('change', renderTree);
   document.querySelectorAll('#group-seg button').forEach(b => b.addEventListener('click', () => {
     setGroupMode(b.dataset.mode); updateGroupModeButtons(); renderTree();
