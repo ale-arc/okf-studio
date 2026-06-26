@@ -171,6 +171,12 @@ function parsedOf(doc) {
   return doc._p;
 }
 
+/* Corpo do doc em minúsculas, memoizado (para a busca não re-baixar toda vez). */
+function bodyLcOf(doc) {
+  if (doc._blcSrc !== doc.content) { doc._blc = (parsedOf(doc).body || '').toLowerCase(); doc._blcSrc = doc.content; }
+  return doc._blc;
+}
+
 /* Timestamps ISO são lidos pelo js-yaml como Date — formata de volta para ISO
    (sem milissegundos) para não corromper o campo ao exibir/editar/salvar. */
 function fmtTimestamp(v) {
@@ -264,13 +270,17 @@ function toast(msg, kind) {
 async function openFolder() {
   const dir = await window.okf.openFolder();
   if (!dir) return;
-  const res = await window.okf.readBundle(dir);
+  let res;
+  try { res = await window.okf.readBundle(dir); }
+  catch (e) { toast('Não foi possível abrir a biblioteca.', 'bad'); return; }
   const name = dir.split(/[\\/]/).pop();
   loadBundle(res, name);
   await window.okf.recents.add({ path: dir, name });
 }
 async function openSample() {
-  const res = await window.okf.readSample();
+  let res;
+  try { res = await window.okf.readSample(); }
+  catch (e) { toast('Não foi possível abrir a biblioteca de exemplo.', 'bad'); return; }
   loadBundle(res, 'Biblioteca de exemplo');
 }
 
@@ -302,7 +312,9 @@ async function doCreateLibrary() {
 
 async function reload() {
   if (!state.root) return;
-  const res = await window.okf.readBundle(state.root);
+  let res;
+  try { res = await window.okf.readBundle(state.root); }
+  catch (e) { toast('Não foi possível recarregar a biblioteca.', 'bad'); return; }
   loadBundle(res, state.name);
   toast('Biblioteca recarregada', 'good');
 }
@@ -475,7 +487,7 @@ function renderTree() {
     if (typeF && type !== typeF) return false;
     if (q) {
       const tags = Array.isArray(p.frontmatter.tags) ? p.frontmatter.tags.join(' ') : (p.frontmatter.tags || '');
-      const body = (p.body || '').toLowerCase();
+      const body = bodyLcOf(d);
       if (!(title.toLowerCase().includes(q) || id.toLowerCase().includes(q) ||
             String(tags).toLowerCase().includes(q) || body.includes(q))) return false;
     }
@@ -709,7 +721,7 @@ function renderConcept(doc) {
 
   // body
   const bodyEl = $('md-body');
-  bodyEl.innerHTML = marked.parse(p.body || '');
+  bodyEl.innerHTML = DOMPurify.sanitize(marked.parse(p.body || ''));
   rewireLinks(bodyEl, doc.relPath);
 
   // backlinks
@@ -960,7 +972,7 @@ async function cancelEdit() {
   state.editing = false;
   const doc = state.docs.find(d => d.relPath === state.current);
   if (window.OKFEditor) { await window.OKFEditor.destroy(); }
-  renderConcept(doc);
+  if (doc) renderConcept(doc); else showEmpty();
 }
 
 async function saveEdit() {
@@ -1049,6 +1061,7 @@ async function changeConceptType(rel, newType, content) {
 // Move fromRel -> toRel: reescreve links, regenera índices e (opcional) loga.
 // movedContentOverride: conteúdo já editado do arquivo movido (ex.: troca de tipo).
 async function performMove(fromRel, toRel, logEntry, movedContentOverride) {
+  if (!docByRel(fromRel)) return false;
   const changes = OKF.auto.rewriteRenameLinks(state.docs, fromRel, toRel);
   const movedChange = changes.find(c => c.relPath === fromRel);
   const movedContent = movedContentOverride != null ? movedContentOverride
@@ -1627,7 +1640,8 @@ function init() {
   $('cm-cancel').onclick = closeConceptPicker;
   $('cm-search').addEventListener('input', e => renderConceptList(e.target.value));
   $('e-now').onclick = () => $('e-timestamp').value = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-  $('search').addEventListener('input', renderTree);
+  let searchTimer = null;
+  $('search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderTree, 150); });
   $('type-filter').addEventListener('change', renderTree);
   document.querySelectorAll('#group-seg button').forEach(b => b.addEventListener('click', () => {
     setGroupMode(b.dataset.mode); updateGroupModeButtons(); renderTree();

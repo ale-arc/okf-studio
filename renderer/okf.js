@@ -32,6 +32,15 @@
     return result;
   }
 
+  // Igual a parse(d.content), mas memoiza no próprio doc (campos _p/_pSrc —
+  // os mesmos que o parsedOf do renderer usa, compartilhando o cache).
+  function parseDoc(d) {
+    if (d && d._p && d._pSrc === d.content) return d._p;
+    const p = parse(d == null || d.content == null ? '' : d.content);
+    if (d) { d._p = p; d._pSrc = d.content; }
+    return p;
+  }
+
   // Serialize frontmatter + body back to a string.
   function serialize(frontmatter, body) {
     const keys = Object.keys(frontmatter || {});
@@ -91,7 +100,7 @@
     const concepts = docs.filter(d => !isReserved(d.relPath));
     const idSet = new Set(concepts.map(d => conceptId(d.relPath)));
     const nodes = concepts.map(d => {
-      const p = parse(d.content);
+      const p = parseDoc(d);
       return {
         id: conceptId(d.relPath),
         relPath: d.relPath,
@@ -103,7 +112,7 @@
     const edges = [];
     const backlinks = {}; // targetId -> [sourceId]
     for (const d of concepts) {
-      const p = parse(d.content);
+      const p = parseDoc(d);
       const src = conceptId(d.relPath);
       const seen = new Set();
       for (const lk of extractLinks(p.body)) {
@@ -380,7 +389,7 @@
     const map = new Map();
     for (const d of docs) {
       if (isReserved(d.relPath)) continue;
-      const t = parse(d.content).frontmatter.type;
+      const t = parseDoc(d).frontmatter.type;
       if (t == null || String(t).trim() === '') continue;
       const label = String(t).trim();
       const slug = folderForType(label);
@@ -439,7 +448,7 @@
       return groups.get(key);
     };
     for (const d of list) {
-      const f = parse(d.content == null ? '' : d.content).frontmatter || {};
+      const f = parseDoc(d).frontmatter || {};
       const reserved = isReserved(d.relPath);
       const base = d.relPath.split('/').pop().replace(/\.md$/i, '');
       const title = (f.title != null && String(f.title).trim() !== '') ? String(f.title) : base;
@@ -486,7 +495,7 @@
   const auto = { MARK_START, MARK_END, headingFor, titleOf, descOf, bulletFor, dirListing, rootListing, mergeManagedBlock, appendLog, relativePath, rewriteRenameLinks, suggestLinks, applySuggestions, libraryFiles, slugify, folderForType, pathForConcept, typeLabelLookup, canonicalType, moveTargetForType, planReorg, groupConcepts, SYSTEM_GROUP_KEY, FAVORITES_GROUP_KEY, withAddedTag };
 
   global.OKF = {
-    RESERVED, isReserved, conceptId, parse, serialize,
+    RESERVED, isReserved, conceptId, parse, parseDoc, serialize,
     extractLinks, resolveTarget, isExternal, buildGraph, validate, auto
   };
 })(window);
