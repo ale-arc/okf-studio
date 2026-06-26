@@ -110,6 +110,7 @@ function buildMenu() {
         { label: 'Reconstruir índices', click: () => mainWindow.webContents.send('menu:rebuild-indexes') },
         { label: 'Grafo de relacionamentos', click: () => mainWindow.webContents.send('menu:graph') },
         { label: 'Saúde da biblioteca', click: () => mainWindow.webContents.send('menu:health') },
+        { label: 'Buscar e substituir', accelerator: 'CmdOrCtrl+Shift+F', click: () => mainWindow.webContents.send('menu:search') },
         { type: 'separator' },
         { role: 'toggleDevTools', label: 'Ferramentas de desenvolvedor' },
         { role: 'resetZoom', label: 'Zoom padrão' },

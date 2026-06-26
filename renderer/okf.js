@@ -251,6 +251,63 @@
     };
   }
 
+  // Busca literal no CORPO dos conceitos (frontmatter preservado/ignorado).
+  // Retorna [{ relPath, title, count, snippets:[{before,match,after}] }] (até 3
+  // trechos por conceito). opts.caseSensitive (padrão: insensível). Pura.
+  function searchConcepts(docs, query, opts) {
+    const q = String(query == null ? '' : query);
+    if (!q) return [];
+    const cs = !!(opts && opts.caseSensitive);
+    const ql = cs ? q : q.toLowerCase();
+    const out = [];
+    for (const d of (docs || [])) {
+      if (isReserved(d.relPath)) continue;
+      const p = parse(d.content);
+      const body = p.body || '';
+      const hay = cs ? body : body.toLowerCase();
+      let idx = hay.indexOf(ql), count = 0;
+      const snippets = [];
+      while (idx !== -1) {
+        count++;
+        if (snippets.length < 3) {
+          const start = Math.max(0, idx - 30);
+          const end = Math.min(body.length, idx + q.length + 30);
+          snippets.push({
+            before: (start > 0 ? '…' : '') + body.slice(start, idx),
+            match: body.slice(idx, idx + q.length),
+            after: body.slice(idx + q.length, end) + (end < body.length ? '…' : '')
+          });
+        }
+        idx = hay.indexOf(ql, idx + q.length);
+      }
+      if (count) out.push({ relPath: d.relPath, title: p.frontmatter.title || baseName(d.relPath), count, snippets });
+    }
+    return out;
+  }
+
+  // Substitui literalmente `query` por `replacement` no CORPO de `content`,
+  // preservando o frontmatter. Retorna { content, count }. Pura.
+  function replaceInBody(content, query, replacement, opts) {
+    const q = String(query == null ? '' : query);
+    if (!q) return { content, count: 0 };
+    const cs = !!(opts && opts.caseSensitive);
+    const rep = replacement == null ? '' : String(replacement);
+    const p = parse(content);
+    const body = p.body || '';
+    const hay = cs ? body : body.toLowerCase();
+    const ql = cs ? q : q.toLowerCase();
+    let result = '', count = 0, i = 0;
+    for (;;) {
+      const idx = hay.indexOf(ql, i);
+      if (idx === -1) { result += body.slice(i); break; }
+      result += body.slice(i, idx) + rep;
+      i = idx + q.length;
+      count++;
+    }
+    if (!count) return { content, count: 0 };
+    return { content: serialize(p.frontmatter, result), count };
+  }
+
   // ---- Automação determinística (índices, log, rename, cross-links) ----
   const MARK_START = '<!-- okf:index -->';
   const MARK_END = '<!-- /okf:index -->';
@@ -636,7 +693,8 @@
 
   global.OKF = {
     RESERVED, isReserved, conceptId, parse, parseDoc, serialize,
-    extractLinks, resolveTarget, isExternal, buildGraph, validate, health, auto,
+    extractLinks, resolveTarget, isExternal, buildGraph, validate, health,
+    searchConcepts, replaceInBody, auto,
     opsToDelta, applyDelta
   };
 })(window);
