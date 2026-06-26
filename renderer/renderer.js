@@ -17,6 +17,15 @@ const state = {
   favorites: new Set(),
 };
 
+/* Chaves de localStorage (centralizadas). */
+const LS = {
+  THEME: 'okf-theme',
+  AUTO_INDEX: 'okf-auto-index',
+  GROUP_MODE: 'okf-group-mode',
+  COLLAPSED: 'okf-collapsed:',   // prefixo + state.root
+  FAVORITES: 'okf-favorites:',   // prefixo + state.root
+};
+
 /* ---------- Modelos do usuário (fora da biblioteca) ---------- */
 async function loadTemplates() {
   try {
@@ -45,10 +54,10 @@ function applyTemplateToForm(name) {
 
 /* ---------- Automação: preferência + montagem de ops ---------- */
 function autoIndexEnabled() {
-  try { return localStorage.getItem('okf-auto-index') !== 'off'; } catch (e) { return true; }
+  try { return localStorage.getItem(LS.AUTO_INDEX) !== 'off'; } catch (e) { return true; }
 }
 function setAutoIndex(on) {
-  try { localStorage.setItem('okf-auto-index', on ? 'on' : 'off'); } catch (e) {}
+  try { localStorage.setItem(LS.AUTO_INDEX, on ? 'on' : 'off'); } catch (e) {}
 }
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 function baseNameOf(rel) { return rel.split('/').pop(); }
@@ -99,7 +108,7 @@ function indexOpsFrom(docs) {
   // Remove index.md de subdiretórios que não contêm mais nenhum conceito.
   const keep = new Set(dirs.map(d => (d ? d + '/index.md' : 'index.md')));
   for (const d of docs) {
-    if (d.relPath.split('/').pop().toLowerCase() !== 'index.md') continue;
+    if (baseNameOf(d.relPath).toLowerCase() !== 'index.md') continue;
     if (!keep.has(d.relPath)) ops.push({ op: 'delete', relPath: d.relPath });
   }
   return ops;
@@ -151,7 +160,7 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   const btn = document.getElementById('btn-theme');
   if (btn) { btn.textContent = theme === 'light' ? '☀' : '🌙'; }
-  try { localStorage.setItem('okf-theme', theme); } catch (e) {}
+  try { localStorage.setItem(LS.THEME, theme); } catch (e) {}
   // Re-render the graph so its colors follow the new theme.
   if (typeof showGraph === 'function' && state && state.root &&
       $('graph-view') && !$('graph-view').classList.contains('hidden')) {
@@ -160,7 +169,7 @@ function applyTheme(theme) {
 }
 function initTheme() {
   let theme;
-  try { theme = localStorage.getItem('okf-theme'); } catch (e) {}
+  try { theme = localStorage.getItem(LS.THEME); } catch (e) {}
   if (!theme) {
     theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
@@ -398,15 +407,15 @@ function indexDocs() {
 
 /* ---------- Agrupamento e colapso da árvore ---------- */
 function currentGroupMode() {
-  try { const m = localStorage.getItem('okf-group-mode'); return (m === 'tag' || m === 'flat') ? m : 'type'; }
+  try { const m = localStorage.getItem(LS.GROUP_MODE); return (m === 'tag' || m === 'flat') ? m : 'type'; }
   catch (e) { return 'type'; }
 }
-function setGroupMode(mode) { try { localStorage.setItem('okf-group-mode', mode); } catch (e) {} }
+function setGroupMode(mode) { try { localStorage.setItem(LS.GROUP_MODE, mode); } catch (e) {} }
 function updateGroupModeButtons() {
   const mode = currentGroupMode();
   document.querySelectorAll('#group-seg button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
 }
-function collapseKey() { return 'okf-collapsed:' + (state.root || ''); }
+function collapseKey() { return LS.COLLAPSED + (state.root || ''); }
 function loadCollapsedSet() {
   let raw = null;
   try { raw = localStorage.getItem(collapseKey()); } catch (e) {}
@@ -414,7 +423,7 @@ function loadCollapsedSet() {
   try { const a = JSON.parse(raw); return new Set(Array.isArray(a) ? a : []); } catch (e) { return new Set(); }
 }
 function saveCollapsed(set) { try { localStorage.setItem(collapseKey(), JSON.stringify([...set])); } catch (e) {} }
-function favoritesKey() { return 'okf-favorites:' + (state.root || ''); }
+function favoritesKey() { return LS.FAVORITES + (state.root || ''); }
 function loadFavoritesSet() {
   try { const a = JSON.parse(localStorage.getItem(favoritesKey())); return new Set(Array.isArray(a) ? a : []); }
   catch (e) { return new Set(); }
