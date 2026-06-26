@@ -94,4 +94,17 @@ const doc = (relPath, fm, body) => ({ relPath, name: relPath.split('/').pop(), c
   assert.ok(!G(docs, 'type', new Set(['index.md'])).some(x => x.favorites));
 }
 
+// favoritos no modo Lista: grupo "★ Favoritos" no topo, item também na lista plana
+{
+  const docs = [
+    doc('p/a.md', { type: 'Projeto', title: 'A' }),
+    doc('p/b.md', { type: 'Processo', title: 'B' }),
+  ];
+  const g = G(docs, 'flat', new Set(['p/a.md']));
+  assert.strictEqual(g[0].favorites, true);
+  assert.deepStrictEqual(g[0].items.map(i => i.title), ['A']);
+  const flat = g.find(x => !x.favorites && !x.system);
+  assert.deepStrictEqual(flat.items.map(i => i.title), ['A', 'B']);
+}
+
 console.log('test-grouping OK');
