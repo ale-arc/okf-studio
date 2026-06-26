@@ -65,11 +65,15 @@ function renderHealth(h, stale) {
     html += h.orphans.map(o => healthItemHtml(o.where, 'Nenhum outro conceito aponta para "' + o.title + '".')).join('');
   }
 
-  // Tipos inconsistentes (sem alvo único — informativo).
+  // Tipos inconsistentes — botão por variante para padronizar o rótulo.
   if (h.inconsistentTypes.length) {
     html += `<div class="v-section">🏷️ Tipos inconsistentes</div>`;
-    html += h.inconsistentTypes.map(t =>
-      healthItemHtml('', 'Variações do mesmo tipo: ' + t.variants.join(' / ') + ' — padronize para "' + t.canonical + '".')).join('');
+    html += h.inconsistentTypes.map((t, ti) => {
+      const btns = t.variants.map((v, vi) =>
+        `<button class="health-fix" data-unify="${ti}:${vi}">Padronizar para "${escapeHtml(v)}"</button>`).join(' ');
+      return `<div class="v-item warnv"><div class="where">${escapeHtml(t.variants.join(' / '))}</div>` +
+        `<div class="msg">Variações do mesmo tipo na pasta <code>${escapeHtml(t.slug)}</code>. Escolha o rótulo: ${btns}</div></div>`;
+    }).join('');
   }
 
   // Títulos duplicados (uma linha por conceito do grupo).
@@ -95,4 +99,13 @@ function renderHealth(h, stale) {
   // Ação: reconstruir índices, depois re-renderiza o painel.
   const rebuildBtn = $('health-rebuild');
   if (rebuildBtn) rebuildBtn.addEventListener('click', async () => { await rebuildIndexes(); showHealth(); });
+
+  // Ação: padronizar (unificar) o tipo escolhido, depois re-renderiza.
+  el.querySelectorAll('button[data-unify]').forEach(b => b.addEventListener('click', async () => {
+    const [ti, vi] = b.dataset.unify.split(':').map(Number);
+    const t = h.inconsistentTypes[ti];
+    if (!t || !t.variants[vi]) return;
+    await unifyType(t.slug, t.variants[vi]);
+    showHealth();
+  }));
 }
