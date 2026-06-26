@@ -709,7 +709,7 @@ function renderConcept(doc) {
 
   // body
   const bodyEl = $('md-body');
-  bodyEl.innerHTML = marked.parse(p.body || '');
+  bodyEl.innerHTML = DOMPurify.sanitize(marked.parse(p.body || ''));
   rewireLinks(bodyEl, doc.relPath);
 
   // backlinks

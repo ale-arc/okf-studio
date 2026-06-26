@@ -261,6 +261,15 @@ app.whenReady().then(async () => {
   const okDndFav = dndFav && dndFav.favorited === true;
   console.log('  dnd drop favoritar:', JSON.stringify(dndFav));
 
+  // Segurança: DOMPurify presente no renderer e remove handlers/scripts.
+  const sani = await win.webContents.executeJavaScript(`(() => {
+    if (typeof window.DOMPurify === 'undefined') return { present: false };
+    const out = window.DOMPurify.sanitize('<img src=x onerror="alert(1)"><b>ok</b><script>alert(2)<\\/script>');
+    return { present: true, noOnerror: out.indexOf('onerror') === -1, noScript: out.toLowerCase().indexOf('<script') === -1, keepsText: out.indexOf('ok') !== -1 };
+  })()`);
+  const okSani = sani && sani.present === true && sani.noOnerror === true && sani.noScript === true && sani.keepsText === true;
+  console.log('  sanitização (DOMPurify):', JSON.stringify(sani));
+
   // Regressão: o datalist de tipos deve ser populado também ao ENTRAR EM EDIÇÃO,
   // não só ao criar um conceito novo. (Bug: enterEdit não chamava refreshTypeDatalist.)
   const datalist = await win.webContents.executeJavaScript(`(() => {
@@ -310,8 +319,9 @@ app.whenReady().then(async () => {
   console.log('  sidebar OK:', okSidebar);
   console.log('  favoritos OK:', okFav);
   console.log('  dnd OK:', okDnd && okDndFav);
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && cspViolations.length === 0
+  console.log('  sanitização OK:', okSani);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && cspViolations.length === 0 ? 0 : 1);
 });
