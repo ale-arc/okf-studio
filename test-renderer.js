@@ -347,6 +347,40 @@ app.whenReady().then(async () => {
   const okHealth = !!health && health.shown && health.broken && health.orphan && health.clickable >= 1;
   console.log('  saúde da biblioteca:', JSON.stringify(health));
 
+  // Autocomplete [[wikilink]]: detecção pura + popup filtrado ao digitar "[[".
+  const wiki = await win.webContents.executeJavaScript(`(async () => {
+    const q1 = window.OKFEditor.__wikiLinkQuery('texto [[ban');
+    const q2 = window.OKFEditor.__wikiLinkQuery('[[a]] depois');
+    const q3 = window.OKFEditor.__wikiLinkQuery('nada aqui');
+    const host = document.getElementById('milkdown');
+    host.classList.remove('hidden');
+    await window.OKFEditor.create(host, '', { wikiLinkItems: () => [
+      { relPath: 'projeto/atlas.md', title: 'Atlas' },
+      { relPath: 'processo/onboarding.md', title: 'Onboarding' }
+    ]});
+    const view = window.OKFEditor.getView();
+    view.focus();
+    view.dispatch(view.state.tr.insertText('[[atl'));
+    const menu = document.querySelector('.okf-wikilink-menu');
+    const items = menu ? menu.querySelectorAll('.okf-wikilink-item').length : 0;
+    const firstTitle = menu && menu.querySelector('.wl-title') ? menu.querySelector('.wl-title').textContent : '';
+    // Enter escolhe o item selecionado e insere o link no documento.
+    view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const md = window.OKFEditor.getMarkdown();
+    const menuAfter = !!document.querySelector('.okf-wikilink-menu');
+    await window.OKFEditor.destroy();
+    const leftover = !!document.querySelector('.okf-wikilink-menu');
+    return {
+      q1ok: !!q1 && q1.query === 'ban' && q1.from === 6,
+      q2null: q2 === null, q3null: q3 === null,
+      hasMenu: !!menu, items, firstTitle,
+      inserted: md.indexOf('[Atlas](/projeto/atlas.md)') !== -1,
+      closedAfterPick: !menuAfter, cleaned: !leftover
+    };
+  })()`);
+  const okWiki = !!wiki && wiki.q1ok && wiki.q2null && wiki.q3null && wiki.hasMenu && wiki.items === 1 && wiki.firstTitle === 'Atlas' && wiki.inserted && wiki.closedAfterPick && wiki.cleaned;
+  console.log('  wikilink [[:', JSON.stringify(wiki));
+
   const okGlobals = ['marked','OKF','G6','jsyaml'].every(k => result[k] === 'object' || result[k] === 'function');
   const okBridge = result.okfBridge === 'object' && result.updateBridge === true && result.claudeBridge === true && result.gitBridge === true;
   const okRender = result.renderHtml.includes('<table>') && result.renderHtml.includes('<h1>');
@@ -373,8 +407,9 @@ app.whenReady().then(async () => {
   console.log('  estabilidade OK:', okCancel);
   console.log('  delta-reload OK:', okDelta);
   console.log('  saúde OK:', okHealth);
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && okHealth && cspViolations.length === 0
+  console.log('  wikilink OK:', okWiki);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && okHealth && okWiki && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && okHealth && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && okDelta && okHealth && okWiki && cspViolations.length === 0 ? 0 : 1);
 });

@@ -14,6 +14,15 @@ function applyTemplateToForm(name) {
   $('m-tags').value = (t.tags || []).join(', ');
 }
 
+// Opções compartilhadas ao (re)criar o editor Milkdown: sincroniza o corpo e
+// alimenta o autocomplete de [[wikilink]] com os conceitos da biblioteca.
+function editorOpts() {
+  return {
+    onChange: (md) => { state.editorBody = md; },
+    wikiLinkItems: () => currentConceptsForLinks(),
+  };
+}
+
 /* ---------- Render doc ---------- */
 function renderConcept(doc) {
   $('xlink-badge').classList.add('hidden'); $('xlink-panel').classList.add('hidden');
@@ -128,7 +137,7 @@ async function applyBodyEdit(newBody) {
     $('e-body').value = newBody;
   } else if (window.OKFEditor) {
     await window.OKFEditor.destroy();
-    await window.OKFEditor.create($('milkdown'), newBody, { onChange: (md) => { state.editorBody = md; } });
+    await window.OKFEditor.create($('milkdown'), newBody, editorOpts());
   }
 }
 async function acceptSuggestion(i) {
@@ -211,9 +220,7 @@ async function enterEdit() {
   $('e-body').classList.add('hidden');
   $('milkdown').classList.remove('hidden');
   setModeButtons('visual');
-  await window.OKFEditor.create($('milkdown'), state.editorBody, {
-    onChange: (md) => { state.editorBody = md; }
-  });
+  await window.OKFEditor.create($('milkdown'), state.editorBody, editorOpts());
   setTimeout(refreshLinkSuggestions, 0);
 }
 
@@ -286,9 +293,7 @@ async function setEditorMode(mode) {
     state.editorBody = $('e-body').value;
     $('e-body').classList.add('hidden');
     $('milkdown').classList.remove('hidden');
-    await window.OKFEditor.create($('milkdown'), state.editorBody, {
-      onChange: (md) => { state.editorBody = md; }
-    });
+    await window.OKFEditor.create($('milkdown'), state.editorBody, editorOpts());
   }
   state.editorMode = mode;
   setModeButtons(mode);

@@ -14,6 +14,10 @@ import { clipboard } from '@milkdown/plugin-clipboard';
 import { slashFactory, SlashProvider } from '@milkdown/plugin-slash';
 import { callCommand, getMarkdown as getMd, replaceAll, insert } from '@milkdown/utils';
 import { tableToolbar } from './table-toolbar.js';
+import { wikiLinkPlugin, wikiLinkQuery } from './wikilink.js';
+
+// Exposto para o smoke test exercitar a detecção pura de "[[".
+export { wikiLinkQuery as __wikiLinkQuery };
 
 const COMMANDS = {
   bold: [toggleStrongCommand], italic: [toggleEmphasisCommand], strike: [toggleStrikethroughCommand],
@@ -28,6 +32,7 @@ let slashSeq = 0;
 // Cria uma instância isolada do editor e retorna um handle com a API pública.
 export async function createInstance(container, markdown, opts = {}) {
   const slash = slashFactory('okf-slash-' + (slashSeq++));
+  const wikiLink = wikiLinkPlugin(opts.wikiLinkItems);
   let slashProvider = null;
   const SLASH_ITEMS = [
     { label: 'Título 1', run: () => run('h1') }, { label: 'Título 2', run: () => run('h2') },
@@ -68,7 +73,7 @@ export async function createInstance(container, markdown, opts = {}) {
         }
       });
     })
-    .use(commonmark).use(gfm).use(history).use(listener).use(clipboard).use(slash).use(tableToolbar).create();
+    .use(commonmark).use(gfm).use(history).use(listener).use(clipboard).use(slash).use(tableToolbar).use(wikiLink).create();
 
   function run(name) { if (COMMANDS[name]) { const [c, p] = COMMANDS[name]; editor.action(callCommand(c.key, p)); } }
   function taskList() { editor.action(insert('- [ ] ')); }
