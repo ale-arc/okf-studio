@@ -270,6 +270,18 @@ app.whenReady().then(async () => {
   const okSani = sani && sani.present === true && sani.noOnerror === true && sani.noScript === true && sani.keepsText === true;
   console.log('  sanitização (DOMPurify):', JSON.stringify(sani));
 
+  // Estabilidade: cancelEdit com state.current inexistente não quebra.
+  const cancel = await win.webContents.executeJavaScript(`(async () => {
+    state.root = '/fake4';
+    state.docs = [];
+    indexDocs();
+    state.current = 'sumiu/x.md';
+    state.editing = true;
+    try { await cancelEdit(); return { ok: true }; } catch (e) { return { ok: false, err: String(e) }; }
+  })()`);
+  const okCancel = cancel && cancel.ok === true;
+  console.log('  cancelEdit sem doc:', JSON.stringify(cancel));
+
   // Regressão: o datalist de tipos deve ser populado também ao ENTRAR EM EDIÇÃO,
   // não só ao criar um conceito novo. (Bug: enterEdit não chamava refreshTypeDatalist.)
   const datalist = await win.webContents.executeJavaScript(`(() => {
@@ -320,8 +332,9 @@ app.whenReady().then(async () => {
   console.log('  favoritos OK:', okFav);
   console.log('  dnd OK:', okDnd && okDndFav);
   console.log('  sanitização OK:', okSani);
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && cspViolations.length === 0
+  console.log('  estabilidade OK:', okCancel);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && okSani && okCancel && cspViolations.length === 0 ? 0 : 1);
 });

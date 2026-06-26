@@ -270,13 +270,17 @@ function toast(msg, kind) {
 async function openFolder() {
   const dir = await window.okf.openFolder();
   if (!dir) return;
-  const res = await window.okf.readBundle(dir);
+  let res;
+  try { res = await window.okf.readBundle(dir); }
+  catch (e) { toast('Não foi possível abrir a biblioteca.', 'bad'); return; }
   const name = dir.split(/[\\/]/).pop();
   loadBundle(res, name);
   await window.okf.recents.add({ path: dir, name });
 }
 async function openSample() {
-  const res = await window.okf.readSample();
+  let res;
+  try { res = await window.okf.readSample(); }
+  catch (e) { toast('Não foi possível abrir a biblioteca de exemplo.', 'bad'); return; }
   loadBundle(res, 'Biblioteca de exemplo');
 }
 
@@ -308,7 +312,9 @@ async function doCreateLibrary() {
 
 async function reload() {
   if (!state.root) return;
-  const res = await window.okf.readBundle(state.root);
+  let res;
+  try { res = await window.okf.readBundle(state.root); }
+  catch (e) { toast('Não foi possível recarregar a biblioteca.', 'bad'); return; }
   loadBundle(res, state.name);
   toast('Biblioteca recarregada', 'good');
 }
@@ -966,7 +972,7 @@ async function cancelEdit() {
   state.editing = false;
   const doc = state.docs.find(d => d.relPath === state.current);
   if (window.OKFEditor) { await window.OKFEditor.destroy(); }
-  renderConcept(doc);
+  if (doc) renderConcept(doc); else showEmpty();
 }
 
 async function saveEdit() {
@@ -1055,6 +1061,7 @@ async function changeConceptType(rel, newType, content) {
 // Move fromRel -> toRel: reescreve links, regenera índices e (opcional) loga.
 // movedContentOverride: conteúdo já editado do arquivo movido (ex.: troca de tipo).
 async function performMove(fromRel, toRel, logEntry, movedContentOverride) {
+  if (!docByRel(fromRel)) return false;
   const changes = OKF.auto.rewriteRenameLinks(state.docs, fromRel, toRel);
   const movedChange = changes.find(c => c.relPath === fromRel);
   const movedContent = movedContentOverride != null ? movedContentOverride
