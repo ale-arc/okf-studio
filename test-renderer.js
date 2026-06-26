@@ -219,6 +219,48 @@ app.whenReady().then(async () => {
     fav.favFirst === true && fav.marks >= 1 && fav.removed === false;
   console.log('  favoritos grupo/marcador:', JSON.stringify(fav));
 
+  // Drag-and-drop: isValidDropTarget decide alvos; drop em Favoritos favorita.
+  const dnd = await win.webContents.executeJavaScript(`(() => {
+    state.root = '/fake3';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\n---\\n# A\\n' }
+    ];
+    indexDocs();
+    state.collapsed = new Set();
+    state.favorites = new Set();
+    const rel = 'projeto/a.md';
+    const gType = { key: 'type:Processo', label: 'Processo', special: false, system: false, favorites: false };
+    const gSameType = { key: 'type:Projeto', label: 'Projeto', special: false, system: false, favorites: false };
+    const gTag = { key: 'tag:foo', label: 'foo', special: false, system: false, favorites: false };
+    const gSpecial = { key: '__notype__', label: 'Sem tipo', special: true, system: false, favorites: false };
+    const gFav = { key: '__favorites__', label: '★ Favoritos', special: false, system: false, favorites: true };
+    return {
+      validType: isValidDropTarget(gType, rel),
+      invalidSameType: isValidDropTarget(gSameType, rel),
+      validTag: isValidDropTarget(gTag, rel),
+      invalidSpecial: isValidDropTarget(gSpecial, rel),
+      validFav: isValidDropTarget(gFav, rel)
+    };
+  })()`);
+  const okDnd = dnd && dnd.validType === true && dnd.invalidSameType === false &&
+    dnd.validTag === true && dnd.invalidSpecial === false && dnd.validFav === true;
+  console.log('  dnd isValidDropTarget:', JSON.stringify(dnd));
+
+  const dndFav = await win.webContents.executeJavaScript(`(async () => {
+    state.root = '/fake3';
+    state.docs = [
+      { relPath: 'projeto/a.md', name: 'a.md', reserved: false, content: '---\\ntype: Projeto\\ntitle: A\\n---\\n# A\\n' }
+    ];
+    indexDocs();
+    state.collapsed = new Set();
+    state.favorites = new Set();
+    setGroupMode('type'); renderTree();
+    await handleDropOnGroup('projeto/a.md', { key: '__favorites__', label: '★ Favoritos', favorites: true, special: false, system: false });
+    return { favorited: state.favorites.has('projeto/a.md') };
+  })()`);
+  const okDndFav = dndFav && dndFav.favorited === true;
+  console.log('  dnd drop favoritar:', JSON.stringify(dndFav));
+
   // Regressão: o datalist de tipos deve ser populado também ao ENTRAR EM EDIÇÃO,
   // não só ao criar um conceito novo. (Bug: enterEdit não chamava refreshTypeDatalist.)
   const datalist = await win.webContents.executeJavaScript(`(() => {
@@ -267,8 +309,9 @@ app.whenReady().then(async () => {
   console.log('  datalist tipos populado (edição + novo):', okDatalist);
   console.log('  sidebar OK:', okSidebar);
   console.log('  favoritos OK:', okFav);
-  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && cspViolations.length === 0
+  console.log('  dnd OK:', okDnd && okDndFav);
+  console.log(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && cspViolations.length === 0
     ? 'RESULT: PASS' : 'RESULT: FAIL');
 
-  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && cspViolations.length === 0 ? 0 : 1);
+  app.exit(okGlobals && okBridge && okRender && okTheme && okEditor && okRound && okCommands && okGraph && okExtra && okTable && okDatalist && okSidebar && okFav && okDnd && okDndFav && cspViolations.length === 0 ? 0 : 1);
 });
