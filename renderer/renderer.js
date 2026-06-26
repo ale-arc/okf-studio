@@ -14,6 +14,7 @@ const state = {
   linkSuggestions: [],
   templates: [],
   collapsed: new Set(),
+  favorites: new Set(),
 };
 
 /* ---------- Modelos do usuário (fora da biblioteca) ---------- */
@@ -350,6 +351,7 @@ function loadBundle(res, name) {
   state.docs = res.docs || [];
   indexDocs();
   state.collapsed = loadCollapsedSet();
+  state.favorites = loadFavoritesSet();
   $('bundle-name').textContent = name + '  ·  ' + state.docs.length + ' arquivos';
   ['btn-reload','btn-new','btn-graph','btn-validate','btn-claude','btn-git','search','type-filter'].forEach(id => $(id).disabled = false);
   document.querySelectorAll('#group-seg button').forEach(b => b.disabled = false);
@@ -389,6 +391,18 @@ function loadCollapsedSet() {
   try { const a = JSON.parse(raw); return new Set(Array.isArray(a) ? a : []); } catch (e) { return new Set(); }
 }
 function saveCollapsed(set) { try { localStorage.setItem(collapseKey(), JSON.stringify([...set])); } catch (e) {} }
+function favoritesKey() { return 'okf-favorites:' + (state.root || ''); }
+function loadFavoritesSet() {
+  try { const a = JSON.parse(localStorage.getItem(favoritesKey())); return new Set(Array.isArray(a) ? a : []); }
+  catch (e) { return new Set(); }
+}
+function saveFavorites() { try { localStorage.setItem(favoritesKey(), JSON.stringify([...state.favorites])); } catch (e) {} }
+function toggleFavorite(rel) {
+  if (!rel) return;
+  if (state.favorites.has(rel)) state.favorites.delete(rel); else state.favorites.add(rel);
+  saveFavorites();
+  renderTree();
+}
 function toggleGroup(key) {
   if (state.collapsed.has(key)) state.collapsed.delete(key); else state.collapsed.add(key);
   saveCollapsed(state.collapsed);
@@ -420,7 +434,7 @@ function renderTree() {
   });
 
   // 2) agrupar
-  const groups = OKF.auto.groupConcepts(filtered, mode);
+  const groups = OKF.auto.groupConcepts(filtered, mode, state.favorites);
   if (!groups.some(g => g.items.length)) {
     tree.innerHTML = '<div class="dir">Nenhum resultado</div>';
     return;
@@ -429,7 +443,7 @@ function renderTree() {
   // 3) desenhar
   for (const g of groups) {
     if (!g.items.length) continue;
-    const headless = (mode === 'flat' && !g.system); // lista plana não tem cabeçalho
+    const headless = (mode === 'flat' && !g.system && !g.favorites); // lista plana não tem cabeçalho (favoritos e sistema têm)
     let collapsed = false;
     if (!headless) {
       collapsed = state.collapsed.has(g.key);
@@ -447,8 +461,10 @@ function renderTree() {
       node.className = 'node' + (it.reserved ? ' reserved' : '') + (it.relPath === state.current ? ' active' : '');
       node.dataset.rel = it.relPath;
       const showBadge = it.type && mode !== 'type'; // no modo Tipo o badge é redundante
+      const isFav = !it.reserved && state.favorites.has(it.relPath);
       node.innerHTML = `<span class="ic">${it.reserved ? '◷' : '📄'}</span><span class="ttl"></span>` +
-        (showBadge ? `<span class="badge"></span>` : '');
+        (showBadge ? `<span class="badge"></span>` : '') +
+        (isFav ? `<span class="fav-mark" title="Favorito">★</span>` : '');
       node.querySelector('.ttl').textContent = it.title;
       if (showBadge) node.querySelector('.badge').textContent = it.type;
       node.addEventListener('click', () => openDoc(it.relPath));
@@ -482,6 +498,8 @@ function refreshTypeDatalist() {
 let treeMenuRel = null;
 function openTreeMenu(e, rel) {
   treeMenuRel = rel;
+  const favBtn = $('tree-menu').querySelector('button[data-act="favorite"]');
+  if (favBtn) favBtn.textContent = state.favorites.has(rel) ? '☆ Remover dos favoritos' : '★ Favoritar';
   const m = $('tree-menu');
   m.style.left = e.clientX + 'px';
   m.style.top = e.clientY + 'px';
@@ -982,6 +1000,7 @@ async function performMove(fromRel, toRel, logEntry, movedContentOverride) {
     ops.push(...indexOpsFrom(nextDocs));
     if (logEntry) ops.push(logOpFrom(nextDocs, logEntry));
   }
+  if (state.favorites.has(fromRel)) { state.favorites.delete(fromRel); state.favorites.add(toRel); saveFavorites(); }
   return applyOpsAndRefresh(ops, toRel);
 }
 
@@ -1500,7 +1519,8 @@ function init() {
   $('tree-menu').querySelectorAll('button[data-act]').forEach(b => b.addEventListener('click', () => {
     const rel = treeMenuRel; const act = b.dataset.act; closeTreeMenu();
     if (!rel) return;
-    if (act === 'rename') openRename(rel);
+    if (act === 'favorite') toggleFavorite(rel);
+    else if (act === 'rename') openRename(rel);
     else if (act === 'delete') { openDoc(rel); deleteCurrent(); }
   }));
   document.addEventListener('click', (e) => { if (!$('tree-menu').contains(e.target)) closeTreeMenu(); });
