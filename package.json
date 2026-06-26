@@ -1,6 +1,6 @@
 {
   "name": "okf-studio",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Visualizador e editor de bibliotecas no formato Open Knowledge Format (OKF v0.1).",
   "main": "main.js",
   "author": "OKF Studio",
