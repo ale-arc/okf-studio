@@ -177,6 +177,16 @@ button.update:disabled{opacity:1;color:#06281c}
 .okf-slash-menu:not([data-show]){display:none}
 .okf-slash-item{padding:7px 12px;cursor:pointer;font-size:13px;color:var(--text)}
 .okf-slash-item:hover{background:var(--accent);color:#fff}
+/* Autocomplete de [[wikilink]] (popup ancorado no cursor, position:fixed) */
+.okf-wikilink-menu{position:fixed;z-index:300;background:var(--panel);border:1px solid var(--line);
+  border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:220px;max-width:380px;
+  max-height:260px;overflow:auto}
+.okf-wikilink-item{padding:6px 12px;cursor:pointer}
+.okf-wikilink-item .wl-title{font-size:13px;color:var(--text)}
+.okf-wikilink-item .wl-path{font-size:11px;color:var(--muted)}
+.okf-wikilink-item.sel,.okf-wikilink-item:hover{background:var(--accent)}
+.okf-wikilink-item.sel .wl-title,.okf-wikilink-item:hover .wl-title,
+.okf-wikilink-item.sel .wl-path,.okf-wikilink-item:hover .wl-path{color:#fff}
 
 /* graph */
 #graph-view,#validate-view,#manual-view,#git-view{position:absolute;inset:0;background:var(--bg);
