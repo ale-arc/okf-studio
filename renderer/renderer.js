@@ -113,6 +113,16 @@ function logOpFrom(docs, entry) {
   return existing ? { op: 'write', relPath: 'log.md', content } : { op: 'create', relPath: 'log.md', content };
 }
 
+// Re-renderiza tudo a partir do state.docs atual (sem I/O) e seleciona selectRel.
+function rerenderFromState(selectRel) {
+  indexDocs(); buildTypeFilter(); renderTree(); refreshTypeDatalist();
+  $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
+  const want = selectRel || state.current;
+  if (want && state.docs.some(d => d.relPath === want)) openDoc(want);
+  else if (state.docs.length) { const f = state.docs.find(d => !d.reserved) || state.docs[0]; openDoc(f.relPath); }
+  else showEmpty();
+}
+
 // Aplica um lote e recarrega o estado do disco; seleciona selectRel se informado.
 async function applyOpsAndRefresh(ops, selectRel) {
   const r = await window.okf.applyOps({ root: state.root, ops });
@@ -121,7 +131,8 @@ async function applyOpsAndRefresh(ops, selectRel) {
     await refreshFromDisk(null);
     return false;
   }
-  await refreshFromDisk(selectRel);
+  state.docs = OKF.applyDelta(state.docs, OKF.opsToDelta(ops)); // patch sem reler o disco
+  rerenderFromState(selectRel);
   if (!$('git-view').classList.contains('hidden')) refreshGit();
   return true;
 }
@@ -129,12 +140,7 @@ async function applyOpsAndRefresh(ops, selectRel) {
 async function refreshFromDisk(selectRel) {
   const res = await window.okf.readBundle(state.root);
   state.docs = res.docs || [];
-  indexDocs(); buildTypeFilter(); renderTree(); refreshTypeDatalist();
-  $('bundle-name').textContent = state.name + '  ·  ' + state.docs.length + ' arquivos';
-  const want = selectRel || state.current;
-  if (want && state.docs.some(d => d.relPath === want)) openDoc(want);
-  else if (state.docs.length) { const f = state.docs.find(d => !d.reserved) || state.docs[0]; openDoc(f.relPath); }
-  else showEmpty();
+  rerenderFromState(selectRel);
 }
 
 /* ---------- Tema (claro/escuro) ---------- */
