@@ -6,7 +6,13 @@ function createWatcher(onChange) {
   let w = null;
   let timer = null;
   let paused = false;
-  const fire = () => { if (paused) return; clearTimeout(timer); timer = setTimeout(onChange, 300); };
+  let pending = new Set();
+  const fire = (p) => {
+    if (paused) return;
+    if (p) pending.add(p);
+    clearTimeout(timer);
+    timer = setTimeout(() => { const paths = [...pending]; pending.clear(); onChange(paths); }, 300);
+  };
   const ignored = (p) =>
     /[\\/](\.git|node_modules|dist|\.superpowers)([\\/]|$)/.test(p) ||
     /[\\/]\.[^\\/]+$/.test(p);
@@ -25,7 +31,7 @@ function createWatcher(onChange) {
         try { console.error('[watcher] erro do sistema de arquivos ignorado:', (err && err.message) || err); } catch (_) {}
       });
     },
-    pause() { paused = true; clearTimeout(timer); },
+    pause() { paused = true; clearTimeout(timer); pending.clear(); },
     resume() { paused = false; },
     close() {
       if (w) { w.close(); w = null; }

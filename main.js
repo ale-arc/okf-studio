@@ -17,8 +17,14 @@ let manualUpdateCheck = false; // true when the user clicked "Verificar atualiza
 let currentRoot = null; // raiz da biblioteca aberta (cwd do terminal e do watcher)
 
 // Observa a biblioteca aberta e avisa o renderer quando algo muda no disco.
-const libWatcher = createWatcher(() => {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('bundle:changed');
+const libWatcher = createWatcher(async (paths) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    const delta = await computeWatchDelta(currentRoot, paths);
+    mainWindow.webContents.send('bundle:changed', delta);
+  } catch (e) {
+    mainWindow.webContents.send('bundle:changed'); // sem payload = full reload
+  }
 });
 
 function createWindow() {
@@ -157,6 +163,24 @@ async function walk(root, rel = '') {
     }
   }
   return out;
+}
+
+// Lê só os .md que mudaram (paths absolutos do watcher) e devolve um delta.
+async function computeWatchDelta(root, absPaths) {
+  const upserts = [], deletes = [];
+  for (const abs of (absPaths || [])) {
+    if (!String(abs).toLowerCase().endsWith('.md')) continue;
+    const rel = path.relative(root, abs).split(path.sep).join('/');
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) continue; // fora da raiz
+    const name = path.basename(abs);
+    try {
+      const content = await fsp.readFile(abs, 'utf8');
+      upserts.push({ relPath: rel, name, reserved: RESERVED.has(name.toLowerCase()), content });
+    } catch (e) {
+      deletes.push(rel); // removido/ilegível
+    }
+  }
+  return { upserts, deletes };
 }
 
 function safeJoin(root, rel) {
