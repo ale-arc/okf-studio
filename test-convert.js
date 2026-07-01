@@ -254,6 +254,88 @@ const RC5 = require('./src/convert/reconstruct.js');
   has(mdTable, '| Sim \\| Não | 1 \\| 2 |', 'novos: escapa o pipe em linhas da tabela');
 }
 
+// ---- F1: spacing (decisão de espaço entre itens) ----
+const SP = require('./src/convert/spacing.js');
+{
+  ok(Math.abs(SP.lineAvgCharW([{ str: 'abcd', w: 22 }, { str: 'ef', w: 11 }]) - 5.5) < 1e-9,
+    'spacing: avanço médio por caractere da linha');
+
+  const a = { str: 'Termos,', x: 50, w: 40, fontSize: 11 };
+  ok(SP.needsSpace(a, { str: 'definições', x: 90.8, w: 55, fontSize: 11, spaceBefore: true }, 5.5),
+    'spacing: spaceBefore explícito força espaço mesmo com gap ~0');
+  ok(!SP.needsSpace(a, { str: 'definições', x: 90.8, w: 55, fontSize: 11 }, 5.5),
+    'spacing: gap ~0.8pt sem sinal explícito não vira espaço');
+  ok(SP.needsSpace(a, { str: 'palavra', x: 95, w: 40, fontSize: 11 }, 5.5),
+    'spacing: gap 5pt (> 0.5×avanço médio) vira espaço');
+  ok(!SP.needsSpace({ str: 'Olá ', x: 50, w: 20, fontSize: 11 },
+    { str: 'mundo', x: 74, w: 30, fontSize: 11, spaceBefore: true }, 5.5),
+    'spacing: espaço já embutido no str não duplica');
+  ok(!SP.needsSpace({ str: 'cientí', x: 50, w: 36, fontSize: 12 },
+    { str: 'fi', x: 88, w: 12, fontSize: 12 }, 6),
+    'spacing: fragmento de ligadura exige gap maior (0.6×fonte)');
+}
+
+// ---- F2: spaceBefore atravessa a reconstrução ----
+{
+  // simula o TOC da NBR: espaço com avanço ~0 -> pdf.js emite item de espaço à parte,
+  // que normItems converte em spaceBefore no item seguinte.
+  const md = reconstructMarkdown([
+    it('Termos,', 50, 50, 12),
+    Object.assign(it('definições', 92.3, 50, 12), { spaceBefore: true }),
+    Object.assign(it('e', 153, 50, 12), { spaceBefore: true }),
+    Object.assign(it('símbolos', 160, 50, 12), { spaceBefore: true })
+  ]);
+  has(md, 'Termos, definições e símbolos', 'spaceBefore: palavras não colam');
+}
+
+// ---- F3: mediana ponderada por caracteres ----
+{
+  // 3 itens curtos de título (20pt) vs 1 parágrafo longo (10pt): a mediana
+  // simples cairia em 20 (título não vira heading); a ponderada cai em 10.
+  const mdW = reconstructMarkdown([
+    it('RELATÓRIO', 50, 40, 20),
+    it('ANUAL', 160, 40, 20),
+    it('DE 2019', 240, 40, 20),
+    it('Corpo do documento com texto longo o bastante para dominar a mediana ponderada por caracteres.', 50, 120, 10)
+  ]);
+  has(mdW, '# RELATÓRIO ANUAL DE 2019', 'median: ponderada por caracteres calibra heading pelo corpo');
+}
+
+// ---- F4: sumário com pontilhados ----
+{
+  const mdToc = reconstructMarkdown([
+    it('Prefácio', 50, 50, 12),
+    it('....................v', 110, 50, 12),
+    it('1', 50, 70, 12),
+    it('Escopo', 80, 70, 12),
+    it('.................1', 130, 70, 12)
+  ]);
+  has(mdToc, '- Prefácio — v', 'toc: entrada com pontilhado vira item de lista');
+  has(mdToc, '- 1 Escopo — 1', 'toc: entrada numerada preserva número da seção');
+  ok(!mdToc.includes('....'), 'toc: pontilhados removidos');
+}
+
+// ---- F5: capa — linhas de título adjacentes mesclam ----
+{
+  const mdCover = reconstructMarkdown([
+    it('NORMA', 50, 50, 24),
+    it('BRASILEIRA', 50, 80, 24),
+    it('Corpo do texto depois do título com tamanho normal e comprimento suficiente.', 50, 200, 12)
+  ]);
+  has(mdCover, '# NORMA BRASILEIRA', 'capa: linhas de título adjacentes viram um único heading');
+  ok((mdCover.match(/^# /gm) || []).length === 1, 'capa: exatamente um H1');
+}
+
+// ---- F6: blockquote estrito ----
+{
+  // item deslocado demais (metadado de capa à direita) NÃO é citação
+  const mdMeta = reconstructMarkdown([
+    it('Texto do corpo na margem esquerda com comprimento razoável.', 50, 50, 12),
+    it('Segunda edição 27.06.2019', 420, 120, 12)
+  ]);
+  ok(!mdMeta.includes('>'), 'quote: item deslocado demais (capa) não vira blockquote');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');

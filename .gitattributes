@@ -1,0 +1,3 @@
+# Snapshots golden são comparados byte-a-byte com saída gerada em runtime (LF);
+# travar EOL=LF evita que core.autocrlf converta para CRLF no checkout.
+sample-library/pdf-test/*.golden.md text eol=lf

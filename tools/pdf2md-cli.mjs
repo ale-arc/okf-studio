@@ -7,25 +7,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const { reconstructMarkdown, stripRunningHeadersFooters } = require('../src/convert/reconstruct.js');
+// normItems compartilhado com o app (mesma normalização, sem drift)
+const { normItems } = require('../src/convert/index.js');
 const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-
-function normItems(textContent, viewport) {
-  const out = [];
-  for (const it of textContent.items) {
-    if (!it.str) continue;
-    const tr = pdfjs.Util.transform(viewport.transform, it.transform);
-    const x = tr[4];
-    const y = tr[5];
-    const fontSize = Math.hypot(tr[2], tr[3]) || it.height || 12;
-    const name = (it.fontName || '').toLowerCase();
-    out.push({
-      str: it.str, x, y,
-      w: it.width || it.str.length * fontSize * 0.5, h: it.height || fontSize,
-      fontSize, bold: /bold|black|semibold/.test(name), italic: /italic|oblique/.test(name)
-    });
-  }
-  return out;
-}
 
 const [inPath, outPath] = process.argv.slice(2);
 if (!inPath || !outPath) { console.error('uso: node tools/pdf2md-cli.mjs <in.pdf> <out.md>'); process.exit(2); }

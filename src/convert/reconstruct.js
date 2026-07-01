@@ -1,5 +1,6 @@
 // src/convert/reconstruct.js — reconstrói Markdown a partir de itens de texto posicionados (uma página).
 'use strict';
+const { lineAvgCharW, needsSpace } = require('./spacing.js');
 
 // Agrupa itens em linhas por proximidade vertical.
 function groupLines(items) {
@@ -21,18 +22,12 @@ function groupLines(items) {
   return lines;
 }
 
-const LIGATURE = /^(fi|fl|ff|ffi|ffl|ﬀ|ﬁ|ﬂ|ﬃ|ﬄ)$/i;
-
 function lineRawText(line) {
+  const cw = lineAvgCharW(line.items);
   let out = '';
   let prev = null;
   for (const it of line.items) {
-    if (prev) {
-      const gap = it.x - (prev.x + prev.w);
-      const ligature = LIGATURE.test(it.str.trim()) || LIGATURE.test(prev.str.trim());
-      const thresh = (ligature ? 0.6 : 0.3) * prev.fontSize;
-      if (gap > thresh) out += ' ';
-    }
+    if (prev && needsSpace(prev, it, cw)) out += ' ';
     out += it.str;
     prev = it;
   }
@@ -79,6 +74,7 @@ function formatRun(run) {
 
 function lineFormattedText(line, median) {
   if (!line.items || !line.items.length) return '';
+  const cw = lineAvgCharW(line.items);
   const runs = [];
   let prev = null;
   
@@ -95,11 +91,8 @@ function lineFormattedText(line, median) {
         needSpaceBefore: false
       });
     } else {
-      const gap = it.x - (prev.x + prev.w);
-      const ligature = LIGATURE.test(it.str.trim()) || LIGATURE.test(prev.str.trim());
-      const thresh = (ligature ? 0.6 : 0.3) * prev.fontSize;
-      const needSpace = gap > thresh;
-      
+      const needSpace = needsSpace(prev, it, cw);
+
       const lastRun = runs[runs.length - 1];
       const sameStyle = (it.bold === lastRun.bold) && 
                         (it.italic === lastRun.italic) && 
@@ -160,9 +153,22 @@ function emph(it) {
   return formatted + ' ';
 }
 
+// Mediana de fontSize ponderada pelo nº de caracteres: o corpo do texto domina,
+// então capa/front-matter com fontes grandes não distorce a referência.
 function medianFontSize(items) {
-  const sizes = items.map(i => i.fontSize).sort((a, b) => a - b);
-  return sizes.length ? sizes[Math.floor((sizes.length - 1) / 2)] : 12;
+  const entries = [];
+  let total = 0;
+  for (const it of items) {
+    const len = ((it.str || '').trim()).length;
+    if (!len) continue;
+    entries.push([it.fontSize, len]);
+    total += len;
+  }
+  if (!total) return 12;
+  entries.sort((a, b) => a[0] - b[0]);
+  let acc = 0;
+  for (const e of entries) { acc += e[1]; if (acc >= total / 2) return e[0]; }
+  return entries[entries.length - 1][0];
 }
 
 function headingHashes(size, median) {
@@ -174,6 +180,14 @@ function headingHashes(size, median) {
 }
 
 const BULLET = /^([•\-\*•●▪]|\d+[.)])\s+/;
+
+// Linha de sumário: "Título ......... 12" (nº de página arábico ou romano).
+const TOC_LINE = /^(.*?)\s*\.{4,}\s*([ivxlcdm]+|\d+)\s*$/i;
+function tocEntry(rawText) {
+  const m = rawText.match(TOC_LINE);
+  if (!m || !m[1].trim()) return null;
+  return '- ' + m[1].trim() + ' — ' + m[2];
+}
 
 function detectColumns(lines) {
   const xs = [];
@@ -278,7 +292,10 @@ function joinParagraph(lines, median) {
   return cur;
 }
 
-// Processa as linhas de UMA coluna: títulos, listas, tabelas (estritas) e parágrafos reflow-ados.
+// Processa as linhas de UMA coluna e devolve blocos tipados { type, text }.
+// Tipos: heading | rule | list | toc | table | code | quote | paragraph.
+// Regra conservadora: o que não se classifica com confiança vira paragraph
+// (nunca descartar texto).
 function emitLines(lines, median) {
   const out = [];
   let i = 0;
@@ -294,13 +311,32 @@ function emitLines(lines, median) {
     const line = lines[i];
     const rawText = lineRawText(line);
     const h = headingHashes(maxFont(line), median);
-    if (h) { out.push(h + rawText.trim()); i++; continue; }
-    
+    if (h) {
+      // Mescla linhas de título adjacentes do MESMO nível e verticalmente
+      // próximas (ex.: capa com o título quebrado em 2-3 linhas).
+      let text = rawText.trim();
+      let k = i + 1;
+      while (k < lines.length) {
+        const ln = lines[k];
+        const hh = headingHashes(maxFont(ln), median);
+        const gap = ln.y - lines[k - 1].y;
+        if (hh !== h || gap > 1.8 * maxFont(ln)) break;
+        text += ' ' + lineRawText(ln).trim();
+        k++;
+      }
+      out.push({ type: 'heading', text: h + text });
+      i = k;
+      continue;
+    }
+
     if (/^[-–—_=*]{3,}$/.test(rawText.replace(/\s/g, ''))) {
-      out.push('---');
+      out.push({ type: 'rule', text: '---' });
       i++;
       continue;
     }
+
+    const toc = tocEntry(rawText);
+    if (toc) { out.push({ type: 'toc', text: toc }); i++; continue; }
     
     const bulletMatch = rawText.match(BULLET);
     if (bulletMatch) {
@@ -317,7 +353,7 @@ function emitLines(lines, median) {
       const formatted = lineFormattedText(line, median);
       const BULLET_STRIP = /^(?:\*{1,3}|_{1,3})?(?:[•\-\*●▪]|\d+[.)])(?:\*{1,3}|_{1,3})?\s+/;
       const content = formatted.replace(BULLET_STRIP, '');
-      out.push(indent + newBullet + content);
+      out.push({ type: 'list', text: indent + newBullet + content });
       i++;
       continue;
     }
@@ -326,13 +362,13 @@ function emitLines(lines, median) {
     while (j < lines.length) {
       const lj = lines[j];
       const rawLj = lineRawText(lj);
-      if (headingHashes(maxFont(lj), median) || BULLET.test(rawLj)) break;
+      if (headingHashes(maxFont(lj), median) || BULLET.test(rawLj) || TOC_LINE.test(rawLj)) break;
       j++;
     }
     for (const sb of splitByGap(lines.slice(i, j))) {
       const cols = isTableStrict(sb);
       if (cols) {
-        out.push(tableMarkdown(sb, cols).trimEnd());
+        out.push({ type: 'table', text: tableMarkdown(sb, cols).trimEnd() });
       } else {
         // Code block detection
         let totalItems = 0;
@@ -349,15 +385,19 @@ function emitLines(lines, median) {
         const isCodeBlock = totalItems > 0 && (monoItems / totalItems) >= 0.8;
         if (isCodeBlock) {
           const codeLines = sb.map(l => lineRawText(l));
-          out.push('```\n' + codeLines.join('\n') + '\n```');
+          out.push({ type: 'code', text: '```\n' + codeLines.join('\n') + '\n```' });
         } else {
-          // Blockquote detection
-          const avgX = sb.reduce((sum, l) => sum + ((l.items && l.items[0] && l.items[0].x) || leftMargin), 0) / sb.length;
-          const isBlockquote = (avgX - leftMargin) > 25;
+          // Citação: recuo moderado E consistente entre as linhas do bloco.
+          // Recuo gigante (> 90pt) é posicionamento de capa/coluna, não citação.
+          const xs = sb.map(l => ((l.items && l.items[0] && l.items[0].x) || leftMargin));
+          const indent = Math.min.apply(null, xs) - leftMargin;
+          const aligned = (Math.max.apply(null, xs) - Math.min.apply(null, xs)) <= 6;
+          const isBlockquote = aligned && indent > 25 && indent <= 90;
           if (isBlockquote) {
-            out.push('> ' + joinParagraph(sb, median));
+            out.push({ type: 'quote', text: '> ' + joinParagraph(sb, median) });
           } else {
-            out.push(joinParagraph(sb, median));
+            // fallback conservador: bloco não classificado é parágrafo, nunca é descartado
+            out.push({ type: 'paragraph', text: joinParagraph(sb, median) });
           }
         }
       }
@@ -409,15 +449,30 @@ function splitColumns(items) {
   return [...splitColumns(left), ...splitColumns(right)];
 }
 
+// Serializa o modelo de blocos em Markdown. Blocos de lista/TOC adjacentes
+// colapsam com quebra simples (lista compacta); o resto separa com linha em branco.
+function serializeBlocks(blocks) {
+  const parts = [];
+  for (const b of blocks) {
+    const last = parts[parts.length - 1];
+    if (last && (b.type === 'list' || b.type === 'toc') && last.type === b.type) {
+      last.text += '\n' + b.text;
+    } else {
+      parts.push({ type: b.type, text: b.text });
+    }
+  }
+  return parts.map(p => p.text).join('\n\n');
+}
+
 function reconstructMarkdown(items) {
   const clean = (items || []).filter(i => i && typeof i.str === 'string' && i.str.trim() !== '');
   if (!clean.length) return '';
   const median = medianFontSize(clean);
-  const out = [];
+  const blocks = [];
   for (const colItems of splitColumns(clean)) {
-    out.push(...emitLines(groupLines(colItems), median));
+    blocks.push(...emitLines(groupLines(colItems), median));
   }
-  return out.join('\n\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+  return serializeBlocks(blocks).replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
 function normHF(s) { return String(s).toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim(); }
