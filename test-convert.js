@@ -326,6 +326,16 @@ const SP = require('./src/convert/spacing.js');
   ok((mdCover.match(/^# /gm) || []).length === 1, 'capa: exatamente um H1');
 }
 
+// ---- F6: blockquote estrito ----
+{
+  // item deslocado demais (metadado de capa à direita) NÃO é citação
+  const mdMeta = reconstructMarkdown([
+    it('Texto do corpo na margem esquerda com comprimento razoável.', 50, 50, 12),
+    it('Segunda edição 27.06.2019', 420, 120, 12)
+  ]);
+  ok(!mdMeta.includes('>'), 'quote: item deslocado demais (capa) não vira blockquote');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');

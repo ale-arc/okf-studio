@@ -387,9 +387,12 @@ function emitLines(lines, median) {
           const codeLines = sb.map(l => lineRawText(l));
           out.push({ type: 'code', text: '```\n' + codeLines.join('\n') + '\n```' });
         } else {
-          // Blockquote detection
-          const avgX = sb.reduce((sum, l) => sum + ((l.items && l.items[0] && l.items[0].x) || leftMargin), 0) / sb.length;
-          const isBlockquote = (avgX - leftMargin) > 25;
+          // Citação: recuo moderado E consistente entre as linhas do bloco.
+          // Recuo gigante (> 90pt) é posicionamento de capa/coluna, não citação.
+          const xs = sb.map(l => ((l.items && l.items[0] && l.items[0].x) || leftMargin));
+          const indent = Math.min.apply(null, xs) - leftMargin;
+          const aligned = (Math.max.apply(null, xs) - Math.min.apply(null, xs)) <= 6;
+          const isBlockquote = aligned && indent > 25 && indent <= 90;
           if (isBlockquote) {
             out.push({ type: 'quote', text: '> ' + joinParagraph(sb, median) });
           } else {
