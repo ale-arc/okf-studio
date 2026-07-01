@@ -381,19 +381,35 @@
       <div id="import-status" class="import-status"></div>
       <progress id="import-progress" max="100" value="0" class="hidden"></progress>
       <div class="import-toolbar">
+        <span class="seg">
+          <button type="button" id="import-tab-result" class="on">Resultado</button>
+          <button type="button" id="import-tab-preview">Preview HTML</button>
+        </span>
+        <span class="tb-sep"></span>
         <button type="button" id="import-mode-visual" class="on">👁 Visual</button>
         <button type="button" id="import-mode-source">&lt;&gt; Código</button>
+        <span class="grow"></span>
+        <select id="import-ocr-lang" title="Idioma para OCR">
+          <option value="por+eng">Português + Inglês</option>
+          <option value="eng">Inglês</option>
+          <option value="spa">Espanhol</option>
+        </select>
       </div>
-      <div id="import-editor" class="milkdown-host"></div>
-      <textarea id="import-md" class="import-md hidden" spellcheck="false"
-                placeholder="O Markdown convertido aparecerá aqui para revisão…"></textarea>
+      <div id="import-editor-container">
+        <div id="import-editor" class="milkdown-host"></div>
+        <textarea id="import-md" class="import-md hidden" spellcheck="false"
+                  placeholder="O Markdown convertido aparecerá aqui para revisão…"></textarea>
+      </div>
+      <div id="import-preview-container" class="md-body hidden" style="overflow-y: auto; max-height: 50vh; padding: 10px; background: var(--bg-card); border-radius: 4px; border: 1px solid var(--border);"></div>
       <div class="modal-actions">
         <label class="import-path-row full">Tipo (type) <span class="req">*</span>
           <input id="import-type" type="text" list="type-options" placeholder="Referência" />
         </label>
         <div class="row-buttons">
+          <button id="import-open-pdf" class="hidden">Abrir PDF</button>
+          <button id="import-cancel-process" class="hidden">Cancelar Conversão</button>
           <button id="import-save" class="primary" disabled>💾 Salvar conceito</button>
-          <button id="import-cancel">Cancelar</button>
+          <button id="import-cancel">Fechar</button>
         </div>
       </div>
     </div>

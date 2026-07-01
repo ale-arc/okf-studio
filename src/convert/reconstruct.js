@@ -6,8 +6,13 @@ function groupLines(items) {
   const sorted = items.slice().sort((a, b) => (a.y - b.y) || (a.x - b.x));
   const lines = [];
   for (const it of sorted) {
-    const tol = Math.max(3, it.fontSize * 0.6);
-    let line = lines.find(l => Math.abs(l.y - it.y) <= tol);
+    let line = lines.find(l => {
+      const lMed = medianFontSize(l.items) || 12;
+      const maxFont = Math.max(it.fontSize, lMed);
+      let tol = Math.max(3, maxFont * 0.6);
+      if (Math.min(it.fontSize, lMed) < maxFont * 0.7) tol = Math.max(3, maxFont * 0.85);
+      return Math.abs(l.y - it.y) <= tol;
+    });
     if (!line) { line = { y: it.y, items: [] }; lines.push(line); }
     line.items.push(it);
   }
@@ -17,7 +22,8 @@ function groupLines(items) {
 }
 
 const LIGATURE = /^(fi|fl|ff|ffi|ffl|ﬀ|ﬁ|ﬂ|ﬃ|ﬄ)$/i;
-function lineText(line) {
+
+function lineRawText(line) {
   let out = '';
   let prev = null;
   for (const it of line.items) {
@@ -27,19 +33,131 @@ function lineText(line) {
       const thresh = (ligature ? 0.6 : 0.3) * prev.fontSize;
       if (gap > thresh) out += ' ';
     }
-    out += emph(it);
+    out += it.str;
     prev = it;
   }
   return out.replace(/\s+/g, ' ').trim();
 }
 
+// Keep lineText as an alias for lineRawText to avoid breaking tests/assumptions if any
+function lineText(line) {
+  return lineRawText(line);
+}
+
+function formatRun(run) {
+  let s = run.str;
+  if (!s.trim()) return s;
+  
+  const match = s.match(/^(\s*)([\s\S]*?)(\s*)$/);
+  const leading = match[1];
+  const content = match[2];
+  const trailing = match[3];
+  
+  if (!content) return s;
+  
+  let formatted = content;
+  if (run.superscript && /^\d+$/.test(content.trim())) {
+    formatted = `[^${content.trim()}]`;
+  } else if (run.mono) {
+    formatted = '`' + content + '`';
+  } else {
+    if (run.bold && run.italic) {
+      formatted = '***' + content + '***';
+    } else if (run.bold) {
+      formatted = '**' + content + '**';
+    } else if (run.italic) {
+      formatted = '*' + content + '*';
+    }
+  }
+  
+  if (run.link) {
+    formatted = '[' + formatted + '](' + run.link + ')';
+  }
+  
+  return leading + formatted + trailing;
+}
+
+function lineFormattedText(line, median) {
+  if (!line.items || !line.items.length) return '';
+  const runs = [];
+  let prev = null;
+  
+  for (const it of line.items) {
+    const isSuperscript = it.fontSize < (median || 12) * 0.75;
+    if (!prev) {
+      runs.push({
+        str: it.str,
+        bold: !!it.bold,
+        italic: !!it.italic,
+        mono: !!it.mono,
+        superscript: isSuperscript,
+        link: it.link || null,
+        needSpaceBefore: false
+      });
+    } else {
+      const gap = it.x - (prev.x + prev.w);
+      const ligature = LIGATURE.test(it.str.trim()) || LIGATURE.test(prev.str.trim());
+      const thresh = (ligature ? 0.6 : 0.3) * prev.fontSize;
+      const needSpace = gap > thresh;
+      
+      const lastRun = runs[runs.length - 1];
+      const sameStyle = (it.bold === lastRun.bold) && 
+                        (it.italic === lastRun.italic) && 
+                        (it.mono === lastRun.mono) && 
+                        (isSuperscript === lastRun.superscript) &&
+                        ((it.link || null) === lastRun.link);
+      
+      if (sameStyle) {
+        if (needSpace) {
+          lastRun.str += ' ' + it.str;
+        } else {
+          lastRun.str += it.str;
+        }
+      } else {
+        runs.push({
+          str: it.str,
+          bold: !!it.bold,
+          italic: !!it.italic,
+          mono: !!it.mono,
+          superscript: isSuperscript,
+          link: it.link || null,
+          needSpaceBefore: needSpace
+        });
+      }
+    }
+    prev = it;
+  }
+  
+  let out = '';
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i];
+    const formatted = formatRun(run);
+    if (run.needSpaceBefore && out && !out.endsWith(' ') && !formatted.startsWith(' ')) {
+      out += ' ';
+    }
+    out += formatted;
+  }
+  return out.trim();
+}
+
 function emph(it) {
   let s = it.str;
   if (!s.trim()) return s;
-  if (it.bold && it.italic) return '***' + s.trim() + '*** ';
-  if (it.bold) return '**' + s.trim() + '** ';
-  if (it.italic) return '*' + s.trim() + '* ';
-  return s;
+  let content = s.trim().replace(/\|/g, '\\|');
+  
+  let formatted = content;
+  if (it.mono) {
+    formatted = '`' + content + '`';
+  } else {
+    if (it.bold && it.italic) formatted = '***' + content + '***';
+    else if (it.bold) formatted = '**' + content + '**';
+    else if (it.italic) formatted = '*' + content + '*';
+  }
+  
+  if (it.link) {
+    formatted = '[' + formatted + '](' + it.link + ')';
+  }
+  return formatted + ' ';
 }
 
 function medianFontSize(items) {
@@ -149,10 +267,10 @@ function splitByGap(lines) {
 }
 
 // Junta as linhas de um sub-bloco num único parágrafo (com des-hifenização).
-function joinParagraph(lines) {
+function joinParagraph(lines, median) {
   let cur = '';
   for (let i = 0; i < lines.length; i++) {
-    const t = lineText(lines[i]);
+    const t = lineFormattedText(lines[i], median);
     if (i === 0) { cur = t; continue; }
     if (/[a-zà-ÿ]-$/i.test(cur) && /^[a-zà-ÿ]/.test(t)) cur = cur.slice(0, -1) + t;
     else cur = cur + ' ' + t;
@@ -164,22 +282,85 @@ function joinParagraph(lines) {
 function emitLines(lines, median) {
   const out = [];
   let i = 0;
+  
+  // Find page left margin (excluding headings, since they can be centered/offset)
+  const bodyLines = lines.filter(l => {
+    if (headingHashes(maxFont(l), median)) return false;
+    return l.items && l.items[0] && typeof l.items[0].x === 'number';
+  });
+  const leftMargin = bodyLines.length ? Math.min.apply(null, bodyLines.map(l => l.items[0].x)) : 50;
+
   while (i < lines.length) {
     const line = lines[i];
-    const text = lineText(line);
+    const rawText = lineRawText(line);
     const h = headingHashes(maxFont(line), median);
-    if (h) { out.push(h + text.replace(/\*{1,3}/g, '').trim()); i++; continue; }
-    if (BULLET.test(text)) { out.push('- ' + text.replace(BULLET, '')); i++; continue; }
+    if (h) { out.push(h + rawText.trim()); i++; continue; }
+    
+    if (/^[-–—_=*]{3,}$/.test(rawText.replace(/\s/g, ''))) {
+      out.push('---');
+      i++;
+      continue;
+    }
+    
+    const bulletMatch = rawText.match(BULLET);
+    if (bulletMatch) {
+      const bulletChar = bulletMatch[1];
+      const isOrdered = /^\d+/.test(bulletChar);
+      const newBullet = isOrdered ? bulletChar.replace(/[)]$/, '.') + ' ' : '- ';
+      
+      const bulletX = (line.items && line.items[0] && line.items[0].x) || leftMargin;
+      const diff = bulletX - leftMargin;
+      // Step of 18 points per indentation level
+      const level = diff > 8 ? Math.max(0, Math.round(diff / 18)) : 0;
+      const indent = '    '.repeat(level);
+      
+      const formatted = lineFormattedText(line, median);
+      const BULLET_STRIP = /^(?:\*{1,3}|_{1,3})?(?:[•\-\*●▪]|\d+[.)])(?:\*{1,3}|_{1,3})?\s+/;
+      const content = formatted.replace(BULLET_STRIP, '');
+      out.push(indent + newBullet + content);
+      i++;
+      continue;
+    }
+    
     let j = i;
     while (j < lines.length) {
       const lj = lines[j];
-      if (headingHashes(maxFont(lj), median) || BULLET.test(lineText(lj))) break;
+      const rawLj = lineRawText(lj);
+      if (headingHashes(maxFont(lj), median) || BULLET.test(rawLj)) break;
       j++;
     }
     for (const sb of splitByGap(lines.slice(i, j))) {
       const cols = isTableStrict(sb);
-      if (cols) out.push(tableMarkdown(sb, cols).trimEnd());
-      else out.push(joinParagraph(sb));
+      if (cols) {
+        out.push(tableMarkdown(sb, cols).trimEnd());
+      } else {
+        // Code block detection
+        let totalItems = 0;
+        let monoItems = 0;
+        for (const l of sb) {
+          for (const it of l.items) {
+            if (it.str.trim()) {
+              totalItems++;
+              if (it.mono) monoItems++;
+            }
+          }
+        }
+        
+        const isCodeBlock = totalItems > 0 && (monoItems / totalItems) >= 0.8;
+        if (isCodeBlock) {
+          const codeLines = sb.map(l => lineRawText(l));
+          out.push('```\n' + codeLines.join('\n') + '\n```');
+        } else {
+          // Blockquote detection
+          const avgX = sb.reduce((sum, l) => sum + ((l.items && l.items[0] && l.items[0].x) || leftMargin), 0) / sb.length;
+          const isBlockquote = (avgX - leftMargin) > 25;
+          if (isBlockquote) {
+            out.push('> ' + joinParagraph(sb, median));
+          } else {
+            out.push(joinParagraph(sb, median));
+          }
+        }
+      }
     }
     i = j;
   }
@@ -273,7 +454,7 @@ function stripRunningHeadersFooters(pages) {
   for (const lines of bandLines) {
     const seen = new Set();
     for (const l of lines) {
-      const key = hfKey(lineText(l));
+      const key = hfKey(lineRawText(l));
       if (!key || seen.has(key)) continue;
       seen.add(key);
       freq.set(key, (freq.get(key) || 0) + 1);
@@ -288,8 +469,8 @@ function stripRunningHeadersFooters(pages) {
     const remove = new Set();
     for (const l of groupLines(pg.items)) {
       if (!(l.y <= top || l.y >= bot)) continue;
-      const key = hfKey(lineText(l));
-      if (repeated.has(key) || isPageNumKey(normHF(lineText(l)))) for (const it of l.items) remove.add(it);
+      const key = hfKey(lineRawText(l));
+      if (repeated.has(key) || isPageNumKey(normHF(lineRawText(l)))) for (const it of l.items) remove.add(it);
     }
     return { items: pg.items.filter(it => !remove.has(it)), height: pg.height };
   });

@@ -194,6 +194,66 @@ const RC5 = require('./src/convert/reconstruct.js');
   ok(tf.includes('corpo 1') && tf.includes('corpo 3'), 'head/foot: mantém o miolo (variável)');
 }
 
+// ---- R8: Novos recursos (listas ordenadas, links, code blocks, blockquotes, inline code, escape de tabelas) ----
+{
+  // 1. Listas ordenadas e indentadas
+  const itemsList = [
+    it('1) Item um', 50, 50, 12),
+    it('2) Item dois', 50, 70, 12),
+    it('• Nested bullet', 75, 90, 12)
+  ];
+  const mdList = reconstructMarkdown(itemsList);
+  has(mdList, '1. Item um', 'novos: lista ordenada preserva número e usa ponto');
+  has(mdList, '2. Item dois', 'novos: lista ordenada preserva segundo item');
+  has(mdList, '    - Nested bullet', 'novos: lista aninhada detecta e adiciona recuo de 4 espaços');
+
+  // 2. Links em parágrafo
+  const itemsLink = [
+    it('Veja o ', 50, 50, 12),
+    it('site oficial', 110, 50, 12, { link: 'https://example.com' }),
+    it(' para detalhes.', 180, 50, 12)
+  ];
+  const mdLink = reconstructMarkdown(itemsLink);
+  has(mdLink, 'Veja o [site oficial](https://example.com) para detalhes.', 'novos: formata links e agrupa corretamente');
+
+  // 3. Blocos de código (mono: true)
+  const itemsCode = [
+    it('const x = 10;', 50, 50, 12, { mono: true }),
+    it('console.log(x);', 50, 70, 12, { mono: true })
+  ];
+  const mdCode = reconstructMarkdown(itemsCode);
+  has(mdCode, '```\nconst x = 10;\nconsole.log(x);\n```', 'novos: detecta e gera bloco de código');
+
+  // 4. Código em linha (mono: true em texto normal)
+  const itemsInline = [
+    it('Use o método ', 50, 50, 12),
+    it('run()', 130, 50, 12, { mono: true }),
+    it(' para iniciar.', 170, 50, 12)
+  ];
+  const mdInline = reconstructMarkdown(itemsInline);
+  has(mdInline, 'Use o método `run()` para iniciar.', 'novos: formata código em linha com backticks');
+
+  // 5. Citações (Blockquotes) - parágrafo recuado sem marcador
+  const itemsQuoteFull = [
+    it('Texto padrão do corpo.', 50, 20, 12),
+    it('Esta é uma citação importante.', 80, 50, 12),
+    it('Segunda linha da citação.', 80, 70, 12)
+  ];
+  const mdQuote = reconstructMarkdown(itemsQuoteFull);
+  has(mdQuote, '> Esta é uma citação importante. Segunda linha da citação.', 'novos: detecta e formata blockquote');
+
+  // 6. Escape de pipe em tabelas
+  const itemsTablePipe = [
+    it('Opção | Valor', 50, 50, 12),
+    it('A | B', 300, 50, 12),
+    it('Sim | Não', 50, 70, 12),
+    it('1 | 2', 300, 70, 12)
+  ];
+  const mdTable = reconstructMarkdown(itemsTablePipe);
+  has(mdTable, '| Opção \\| Valor | A \\| B |', 'novos: escapa o pipe em cabeçalho da tabela');
+  has(mdTable, '| Sim \\| Não | 1 \\| 2 |', 'novos: escapa o pipe em linhas da tabela');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');

@@ -24,6 +24,8 @@
   let importDraft = null; // { images: [...], meta: {...} }
   let importEditor = null; // handle da instância do editor do modal
   let importMode = 'visual';
+  let importAbort = null;
+  let importFilePath = null;
 
   function importMarkdown() {
     return importMode === 'visual' && importEditor ? importEditor.getMarkdown() : $('import-md').value;
@@ -50,6 +52,7 @@
     if (!state.root) { toast('Abra uma biblioteca primeiro.', 'bad'); return; }
     const filePath = await window.okf.openDocumentDialog();
     if (!filePath) return;
+    importFilePath = filePath;
     const file = await window.okf.readBinary(filePath);
     const bytes = new Uint8Array(file.bytes);
 
@@ -62,8 +65,15 @@
     const prog = $('import-progress');
     prog.classList.add('hidden'); prog.value = 0;
 
+    const cancelBtn = $('import-cancel-process');
+    if (cancelBtn) cancelBtn.classList.remove('hidden');
+    importAbort = new AbortController();
+
     try {
+      const ocrLang = $('import-ocr-lang') ? $('import-ocr-lang').value : 'por+eng';
       const res = await window.OKFConvert.convert(bytes, file.ext, {
+        signal: importAbort.signal,
+        ocrLang: ocrLang,
         onStatus: (s) => { $('import-status').textContent = s; },
         onProgress: (p) => { prog.classList.remove('hidden'); prog.value = Math.round((p || 0) * 100); }
       });
@@ -74,6 +84,11 @@
         importMode = 'visual';
         $('import-mode-visual').classList.add('on');
         $('import-mode-source').classList.remove('on');
+        if ($('import-editor-container')) $('import-editor-container').classList.remove('hidden');
+        if ($('import-preview-container')) $('import-preview-container').classList.add('hidden');
+        if ($('import-tab-result')) $('import-tab-result').classList.add('on');
+        if ($('import-tab-preview')) $('import-tab-preview').classList.remove('on');
+
         $('import-editor').classList.remove('hidden');
         $('import-md').classList.add('hidden');
         importEditor = await window.OKFEditor.createInstance($('import-editor'), md, {});
@@ -83,15 +98,62 @@
         $('import-md').classList.remove('hidden');
       }
       $('import-type').value = (res.meta && res.meta.type) ? res.meta.type : 'Referência';
+      
+      const openPdfBtn = $('import-open-pdf');
+      if (openPdfBtn) {
+        if (file.ext === 'pdf' || file.ext === '.pdf') openPdfBtn.classList.remove('hidden');
+        else openPdfBtn.classList.add('hidden');
+      }
+      
       $('import-status').textContent = 'Pronto — revise e salve. ' +
         (res.images && res.images.length ? res.images.length + ' imagem(ns) serão salvas em assets/.' : '');
       prog.classList.add('hidden');
       $('import-save').disabled = false;
     } catch (e) {
-      $('import-status').textContent = 'Falha na conversão: ' + ((e && e.message) || e);
+      if (e.message === 'Cancelado') {
+        $('import-status').textContent = 'Conversão cancelada pelo usuário.';
+      } else {
+        $('import-status').textContent = 'Falha na conversão: ' + ((e && e.message) || e);
+      }
       prog.classList.add('hidden');
+    } finally {
+      if (cancelBtn) cancelBtn.classList.add('hidden');
+      importAbort = null;
     }
   }
+
+  function cancelConversion() {
+    if (importAbort) importAbort.abort();
+  }
+
+  function openPdf() {
+    if (importFilePath && window.okf && window.okf.shellOpenPath) {
+      window.okf.shellOpenPath(importFilePath);
+    }
+  }
+
+  function setImportTab(tab) {
+    if (tab === 'result') {
+      $('import-tab-result').classList.add('on');
+      $('import-tab-preview').classList.remove('on');
+      $('import-editor-container').classList.remove('hidden');
+      $('import-preview-container').classList.add('hidden');
+    } else {
+      $('import-tab-result').classList.remove('on');
+      $('import-tab-preview').classList.add('on');
+      $('import-editor-container').classList.add('hidden');
+      $('import-preview-container').classList.remove('hidden');
+      const md = importMarkdown();
+      $('import-preview-container').innerHTML = window.marked.parse(md);
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const t1 = $('import-tab-result'); if (t1) t1.onclick = () => setImportTab('result');
+    const t2 = $('import-tab-preview'); if (t2) t2.onclick = () => setImportTab('preview');
+    const cx = $('import-cancel-process'); if (cx) cx.onclick = cancelConversion;
+    const op = $('import-open-pdf'); if (op) op.onclick = openPdf;
+  });
 
   async function closeImport() {
     $('import-modal').classList.add('hidden');
@@ -104,6 +166,16 @@
     if (!typeRaw) { toast('O campo "type" é obrigatório.', 'bad'); return; }
     const type = OKF.auto.canonicalType(typeRaw, state.docs);
     const title = (importDraft && importDraft.meta && importDraft.meta.title) || 'documento';
+    const fm = { type, title };
+    
+    // Add extra metadata (M14)
+    if (importDraft && importDraft.meta) {
+      if (importDraft.meta.author) fm.author = importDraft.meta.author;
+      if (importDraft.meta.creator) fm.creator = importDraft.meta.creator;
+      if (importDraft.meta.creationDate) fm.creationDate = importDraft.meta.creationDate;
+    }
+    fm.timestamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+    
     const taken = new Set(state.docs.map(d => d.relPath));
     const rel = OKF.auto.pathForConcept(type, title, taken);
     if (state.docs.some(d => d.relPath === rel)) { toast('Já existe um conceito em ' + rel, 'bad'); return; }
@@ -129,7 +201,6 @@
       body = window.OKFConvert.rewriteImageLinks(body, map);
     }
 
-    const fm = { type, title, timestamp: new Date().toISOString().replace(/\.\d+Z$/, 'Z') };
     const content = OKF.serialize(fm, body.startsWith('#') ? body : ('# ' + title + '\n\n' + body));
     ops.unshift({ op: 'create', relPath: rel, content });
 
@@ -138,5 +209,5 @@
     if (ok) toast('Documento importado: ' + rel, 'good');
   }
 
-  window.OKFConvertUI = { exportCurrentPdf, importDocument, closeImport, saveImport, setImportMode };
+  window.OKFConvertUI = { exportCurrentPdf, importDocument, closeImport, saveImport, setImportMode, setImportTab, cancelConversion, openPdf };
 })();
