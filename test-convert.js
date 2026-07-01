@@ -288,6 +288,19 @@ const SP = require('./src/convert/spacing.js');
   has(md, 'Termos, definições e símbolos', 'spaceBefore: palavras não colam');
 }
 
+// ---- F3: mediana ponderada por caracteres ----
+{
+  // 3 itens curtos de título (20pt) vs 1 parágrafo longo (10pt): a mediana
+  // simples cairia em 20 (título não vira heading); a ponderada cai em 10.
+  const mdW = reconstructMarkdown([
+    it('RELATÓRIO', 50, 40, 20),
+    it('ANUAL', 160, 40, 20),
+    it('DE 2019', 240, 40, 20),
+    it('Corpo do documento com texto longo o bastante para dominar a mediana ponderada por caracteres.', 50, 120, 10)
+  ]);
+  has(mdW, '# RELATÓRIO ANUAL DE 2019', 'median: ponderada por caracteres calibra heading pelo corpo');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');

@@ -153,9 +153,22 @@ function emph(it) {
   return formatted + ' ';
 }
 
+// Mediana de fontSize ponderada pelo nº de caracteres: o corpo do texto domina,
+// então capa/front-matter com fontes grandes não distorce a referência.
 function medianFontSize(items) {
-  const sizes = items.map(i => i.fontSize).sort((a, b) => a - b);
-  return sizes.length ? sizes[Math.floor((sizes.length - 1) / 2)] : 12;
+  const entries = [];
+  let total = 0;
+  for (const it of items) {
+    const len = ((it.str || '').trim()).length;
+    if (!len) continue;
+    entries.push([it.fontSize, len]);
+    total += len;
+  }
+  if (!total) return 12;
+  entries.sort((a, b) => a[0] - b[0]);
+  let acc = 0;
+  for (const e of entries) { acc += e[1]; if (acc >= total / 2) return e[0]; }
+  return entries[entries.length - 1][0];
 }
 
 function headingHashes(size, median) {
