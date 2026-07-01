@@ -315,6 +315,17 @@ const SP = require('./src/convert/spacing.js');
   ok(!mdToc.includes('....'), 'toc: pontilhados removidos');
 }
 
+// ---- F5: capa — linhas de título adjacentes mesclam ----
+{
+  const mdCover = reconstructMarkdown([
+    it('NORMA', 50, 50, 24),
+    it('BRASILEIRA', 50, 80, 24),
+    it('Corpo do texto depois do título com tamanho normal e comprimento suficiente.', 50, 200, 12)
+  ]);
+  has(mdCover, '# NORMA BRASILEIRA', 'capa: linhas de título adjacentes viram um único heading');
+  ok((mdCover.match(/^# /gm) || []).length === 1, 'capa: exatamente um H1');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');

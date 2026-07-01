@@ -311,7 +311,23 @@ function emitLines(lines, median) {
     const line = lines[i];
     const rawText = lineRawText(line);
     const h = headingHashes(maxFont(line), median);
-    if (h) { out.push({ type: 'heading', text: h + rawText.trim() }); i++; continue; }
+    if (h) {
+      // Mescla linhas de título adjacentes do MESMO nível e verticalmente
+      // próximas (ex.: capa com o título quebrado em 2-3 linhas).
+      let text = rawText.trim();
+      let k = i + 1;
+      while (k < lines.length) {
+        const ln = lines[k];
+        const hh = headingHashes(maxFont(ln), median);
+        const gap = ln.y - lines[k - 1].y;
+        if (hh !== h || gap > 1.8 * maxFont(ln)) break;
+        text += ' ' + lineRawText(ln).trim();
+        k++;
+      }
+      out.push({ type: 'heading', text: h + text });
+      i = k;
+      continue;
+    }
 
     if (/^[-–—_=*]{3,}$/.test(rawText.replace(/\s/g, ''))) {
       out.push({ type: 'rule', text: '---' });
