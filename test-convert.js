@@ -301,6 +301,20 @@ const SP = require('./src/convert/spacing.js');
   has(mdW, '# RELATÓRIO ANUAL DE 2019', 'median: ponderada por caracteres calibra heading pelo corpo');
 }
 
+// ---- F4: sumário com pontilhados ----
+{
+  const mdToc = reconstructMarkdown([
+    it('Prefácio', 50, 50, 12),
+    it('....................v', 110, 50, 12),
+    it('1', 50, 70, 12),
+    it('Escopo', 80, 70, 12),
+    it('.................1', 130, 70, 12)
+  ]);
+  has(mdToc, '- Prefácio — v', 'toc: entrada com pontilhado vira item de lista');
+  has(mdToc, '- 1 Escopo — 1', 'toc: entrada numerada preserva número da seção');
+  ok(!mdToc.includes('....'), 'toc: pontilhados removidos');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');

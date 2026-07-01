@@ -181,6 +181,14 @@ function headingHashes(size, median) {
 
 const BULLET = /^([•\-\*•●▪]|\d+[.)])\s+/;
 
+// Linha de sumário: "Título ......... 12" (nº de página arábico ou romano).
+const TOC_LINE = /^(.*?)\s*\.{4,}\s*([ivxlcdm]+|\d+)\s*$/i;
+function tocEntry(rawText) {
+  const m = rawText.match(TOC_LINE);
+  if (!m || !m[1].trim()) return null;
+  return '- ' + m[1].trim() + ' — ' + m[2];
+}
+
 function detectColumns(lines) {
   const xs = [];
   for (const l of lines) for (const it of l.items) xs.push(it.x);
@@ -310,6 +318,9 @@ function emitLines(lines, median) {
       i++;
       continue;
     }
+
+    const toc = tocEntry(rawText);
+    if (toc) { out.push({ type: 'toc', text: toc }); i++; continue; }
     
     const bulletMatch = rawText.match(BULLET);
     if (bulletMatch) {
@@ -335,7 +346,7 @@ function emitLines(lines, median) {
     while (j < lines.length) {
       const lj = lines[j];
       const rawLj = lineRawText(lj);
-      if (headingHashes(maxFont(lj), median) || BULLET.test(rawLj)) break;
+      if (headingHashes(maxFont(lj), median) || BULLET.test(rawLj) || TOC_LINE.test(rawLj)) break;
       j++;
     }
     for (const sb of splitByGap(lines.slice(i, j))) {
