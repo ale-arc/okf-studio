@@ -112,9 +112,12 @@ async function pageToDataUrl(page, scale) {
 async function ocrDataUrl(dataUrl, onProgress, lang = 'por+eng') {
   if (typeof window === 'undefined') return { data: { text: '' } };
   const Tesseract = require('tesseract.js');
+  const base = new URL('.', window.location.href).href;
   const result = await Tesseract.recognize(dataUrl, lang, {
-    workerPath: 'vendor/tesseract-worker.min.js',
-    corePath: 'vendor/tesseract-core.wasm.js',
+    workerPath: base + 'vendor/tesseract-worker.min.js',
+    corePath: base + 'vendor/tesseract-core.wasm.js',
+    langPath: base + 'vendor/tessdata',
+    workerBlobURL: false,
     logger: m => { if (m.status === 'recognizing text' && onProgress) onProgress(m); }
   });
   return result;
