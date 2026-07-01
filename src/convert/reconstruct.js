@@ -1,5 +1,6 @@
 // src/convert/reconstruct.js — reconstrói Markdown a partir de itens de texto posicionados (uma página).
 'use strict';
+const { lineAvgCharW, needsSpace } = require('./spacing.js');
 
 // Agrupa itens em linhas por proximidade vertical.
 function groupLines(items) {
@@ -21,18 +22,12 @@ function groupLines(items) {
   return lines;
 }
 
-const LIGATURE = /^(fi|fl|ff|ffi|ffl|ﬀ|ﬁ|ﬂ|ﬃ|ﬄ)$/i;
-
 function lineRawText(line) {
+  const cw = lineAvgCharW(line.items);
   let out = '';
   let prev = null;
   for (const it of line.items) {
-    if (prev) {
-      const gap = it.x - (prev.x + prev.w);
-      const ligature = LIGATURE.test(it.str.trim()) || LIGATURE.test(prev.str.trim());
-      const thresh = (ligature ? 0.6 : 0.3) * prev.fontSize;
-      if (gap > thresh) out += ' ';
-    }
+    if (prev && needsSpace(prev, it, cw)) out += ' ';
     out += it.str;
     prev = it;
   }
@@ -79,6 +74,7 @@ function formatRun(run) {
 
 function lineFormattedText(line, median) {
   if (!line.items || !line.items.length) return '';
+  const cw = lineAvgCharW(line.items);
   const runs = [];
   let prev = null;
   
@@ -95,11 +91,8 @@ function lineFormattedText(line, median) {
         needSpaceBefore: false
       });
     } else {
-      const gap = it.x - (prev.x + prev.w);
-      const ligature = LIGATURE.test(it.str.trim()) || LIGATURE.test(prev.str.trim());
-      const thresh = (ligature ? 0.6 : 0.3) * prev.fontSize;
-      const needSpace = gap > thresh;
-      
+      const needSpace = needsSpace(prev, it, cw);
+
       const lastRun = runs[runs.length - 1];
       const sameStyle = (it.bold === lastRun.bold) && 
                         (it.italic === lastRun.italic) && 

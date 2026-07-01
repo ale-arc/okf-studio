@@ -275,6 +275,19 @@ const SP = require('./src/convert/spacing.js');
     'spacing: fragmento de ligadura exige gap maior (0.6×fonte)');
 }
 
+// ---- F2: spaceBefore atravessa a reconstrução ----
+{
+  // simula o TOC da NBR: espaço com avanço ~0 -> pdf.js emite item de espaço à parte,
+  // que normItems converte em spaceBefore no item seguinte.
+  const md = reconstructMarkdown([
+    it('Termos,', 50, 50, 12),
+    Object.assign(it('definições', 92.3, 50, 12), { spaceBefore: true }),
+    Object.assign(it('e', 153, 50, 12), { spaceBefore: true }),
+    Object.assign(it('símbolos', 160, 50, 12), { spaceBefore: true })
+  ]);
+  has(md, 'Termos, definições e símbolos', 'spaceBefore: palavras não colam');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');

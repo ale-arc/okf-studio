@@ -29,19 +29,24 @@ function firstHeading(md) {
 
 function normItems(textContent, viewport) {
   const out = [];
+  let pendingSpace = false;
   for (const it of textContent.items) {
     if (!it.str) continue;
     const tr = pdfjs.Util.transform(viewport.transform, it.transform);
     const x = tr[4];
     const y = tr[5];
     const fontSize = Math.hypot(tr[2], tr[3]) || it.height || 12;
+    // Item só-espaço: o pdf.js costuma emitir o espaço como item separado, às
+    // vezes com avanço ~0. Não descartar o sinal: vira flag no item seguinte.
+    if (!it.str.trim()) { pendingSpace = true; continue; }
     const name = (it.fontName || '').toLowerCase();
     const mono = /courier|consolas|mono|code|sfmono|liberationmono|lucida.*console|source.*code/i.test(name);
     out.push({
       str: it.str, x, y, w: it.width || it.str.length * fontSize * 0.5, h: it.height || fontSize,
       fontSize, bold: /bold|black|semibold|heavy|demi|ultra/.test(name), italic: /italic|oblique|obli/.test(name) || Math.abs((it.transform||[])[1]||0) > 0.12,
-      mono
+      mono, spaceBefore: pendingSpace
     });
+    pendingSpace = false;
   }
   return out;
 }
@@ -90,7 +95,9 @@ function splitTextItemsByLinks(items, linkAnns) {
         str: segStr,
         x: segX,
         w: segW,
-        link: charLinks[start]
+        link: charLinks[start],
+        // só o 1º segmento herda o espaço; senão nasceria espaço no meio da palavra
+        spaceBefore: start === 0 ? it.spaceBefore : false
       });
       
       start = end;
@@ -261,4 +268,4 @@ async function convert(bytes, ext, opts) {
   return { markdown: md, images: [], meta: { title: '' } };
 }
 
-module.exports = { convert, slugifyAsset, rewriteImageLinks, txtToMarkdown, htmlToMarkdown };
+module.exports = { convert, slugifyAsset, rewriteImageLinks, txtToMarkdown, htmlToMarkdown, normItems };
