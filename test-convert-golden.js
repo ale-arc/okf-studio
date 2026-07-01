@@ -22,7 +22,9 @@ const update = process.env.UPDATE_GOLDEN === '1';
       console.log('golden gravado:', path.basename(gPath), '(' + md.length + ' chars)');
       continue;
     }
-    const want = fs.readFileSync(gPath, 'utf8');
+    // normaliza EOL na leitura: git/checkout pode converter LF->CRLF (core.autocrlf)
+    // e isso não é uma divergência de conteúdo real.
+    const want = fs.readFileSync(gPath, 'utf8').replace(/\r\n/g, '\n');
     if (md === want) { console.log('OK', f); continue; }
     fail++;
     let i = 0;
