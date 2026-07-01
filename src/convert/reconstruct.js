@@ -271,7 +271,10 @@ function joinParagraph(lines, median) {
   return cur;
 }
 
-// Processa as linhas de UMA coluna: títulos, listas, tabelas (estritas) e parágrafos reflow-ados.
+// Processa as linhas de UMA coluna e devolve blocos tipados { type, text }.
+// Tipos: heading | rule | list | toc | table | code | quote | paragraph.
+// Regra conservadora: o que não se classifica com confiança vira paragraph
+// (nunca descartar texto).
 function emitLines(lines, median) {
   const out = [];
   let i = 0;
@@ -287,10 +290,10 @@ function emitLines(lines, median) {
     const line = lines[i];
     const rawText = lineRawText(line);
     const h = headingHashes(maxFont(line), median);
-    if (h) { out.push(h + rawText.trim()); i++; continue; }
-    
+    if (h) { out.push({ type: 'heading', text: h + rawText.trim() }); i++; continue; }
+
     if (/^[-–—_=*]{3,}$/.test(rawText.replace(/\s/g, ''))) {
-      out.push('---');
+      out.push({ type: 'rule', text: '---' });
       i++;
       continue;
     }
@@ -310,7 +313,7 @@ function emitLines(lines, median) {
       const formatted = lineFormattedText(line, median);
       const BULLET_STRIP = /^(?:\*{1,3}|_{1,3})?(?:[•\-\*●▪]|\d+[.)])(?:\*{1,3}|_{1,3})?\s+/;
       const content = formatted.replace(BULLET_STRIP, '');
-      out.push(indent + newBullet + content);
+      out.push({ type: 'list', text: indent + newBullet + content });
       i++;
       continue;
     }
@@ -325,7 +328,7 @@ function emitLines(lines, median) {
     for (const sb of splitByGap(lines.slice(i, j))) {
       const cols = isTableStrict(sb);
       if (cols) {
-        out.push(tableMarkdown(sb, cols).trimEnd());
+        out.push({ type: 'table', text: tableMarkdown(sb, cols).trimEnd() });
       } else {
         // Code block detection
         let totalItems = 0;
@@ -342,15 +345,16 @@ function emitLines(lines, median) {
         const isCodeBlock = totalItems > 0 && (monoItems / totalItems) >= 0.8;
         if (isCodeBlock) {
           const codeLines = sb.map(l => lineRawText(l));
-          out.push('```\n' + codeLines.join('\n') + '\n```');
+          out.push({ type: 'code', text: '```\n' + codeLines.join('\n') + '\n```' });
         } else {
           // Blockquote detection
           const avgX = sb.reduce((sum, l) => sum + ((l.items && l.items[0] && l.items[0].x) || leftMargin), 0) / sb.length;
           const isBlockquote = (avgX - leftMargin) > 25;
           if (isBlockquote) {
-            out.push('> ' + joinParagraph(sb, median));
+            out.push({ type: 'quote', text: '> ' + joinParagraph(sb, median) });
           } else {
-            out.push(joinParagraph(sb, median));
+            // fallback conservador: bloco não classificado é parágrafo, nunca é descartado
+            out.push({ type: 'paragraph', text: joinParagraph(sb, median) });
           }
         }
       }
@@ -402,15 +406,30 @@ function splitColumns(items) {
   return [...splitColumns(left), ...splitColumns(right)];
 }
 
+// Serializa o modelo de blocos em Markdown. Blocos de lista/TOC adjacentes
+// colapsam com quebra simples (lista compacta); o resto separa com linha em branco.
+function serializeBlocks(blocks) {
+  const parts = [];
+  for (const b of blocks) {
+    const last = parts[parts.length - 1];
+    if (last && (b.type === 'list' || b.type === 'toc') && last.type === b.type) {
+      last.text += '\n' + b.text;
+    } else {
+      parts.push({ type: b.type, text: b.text });
+    }
+  }
+  return parts.map(p => p.text).join('\n\n');
+}
+
 function reconstructMarkdown(items) {
   const clean = (items || []).filter(i => i && typeof i.str === 'string' && i.str.trim() !== '');
   if (!clean.length) return '';
   const median = medianFontSize(clean);
-  const out = [];
+  const blocks = [];
   for (const colItems of splitColumns(clean)) {
-    out.push(...emitLines(groupLines(colItems), median));
+    blocks.push(...emitLines(groupLines(colItems), median));
   }
-  return out.join('\n\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+  return serializeBlocks(blocks).replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
 function normHF(s) { return String(s).toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim(); }
