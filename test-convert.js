@@ -254,6 +254,27 @@ const RC5 = require('./src/convert/reconstruct.js');
   has(mdTable, '| Sim \\| Não | 1 \\| 2 |', 'novos: escapa o pipe em linhas da tabela');
 }
 
+// ---- F1: spacing (decisão de espaço entre itens) ----
+const SP = require('./src/convert/spacing.js');
+{
+  ok(Math.abs(SP.lineAvgCharW([{ str: 'abcd', w: 22 }, { str: 'ef', w: 11 }]) - 5.5) < 1e-9,
+    'spacing: avanço médio por caractere da linha');
+
+  const a = { str: 'Termos,', x: 50, w: 40, fontSize: 11 };
+  ok(SP.needsSpace(a, { str: 'definições', x: 90.8, w: 55, fontSize: 11, spaceBefore: true }, 5.5),
+    'spacing: spaceBefore explícito força espaço mesmo com gap ~0');
+  ok(!SP.needsSpace(a, { str: 'definições', x: 90.8, w: 55, fontSize: 11 }, 5.5),
+    'spacing: gap ~0.8pt sem sinal explícito não vira espaço');
+  ok(SP.needsSpace(a, { str: 'palavra', x: 95, w: 40, fontSize: 11 }, 5.5),
+    'spacing: gap 5pt (> 0.5×avanço médio) vira espaço');
+  ok(!SP.needsSpace({ str: 'Olá ', x: 50, w: 20, fontSize: 11 },
+    { str: 'mundo', x: 74, w: 30, fontSize: 11, spaceBefore: true }, 5.5),
+    'spacing: espaço já embutido no str não duplica');
+  ok(!SP.needsSpace({ str: 'cientí', x: 50, w: 36, fontSize: 12 },
+    { str: 'fi', x: 88, w: 12, fontSize: 12 }, 6),
+    'spacing: fragmento de ligadura exige gap maior (0.6×fonte)');
+}
+
 console.log(`\n${n} checagens, ${fail} falha(s)`);
 if (fail) process.exit(1);
 console.log('CONVERT OK');
